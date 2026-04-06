@@ -5,10 +5,12 @@ import EmptyState from '../components/ui/EmptyState'
 import ErrorState from '../components/ui/ErrorState'
 import LoadingState from '../components/ui/LoadingState'
 import StatCard from '../components/ui/StatCard'
+import { useLanguage } from '../i18n/LanguageContext'
 import { queryKeys } from '../lib/queryKeys'
 import { getAuditData } from '../services/api/audit'
 
 function AccountAuditPage() {
+  const { t } = useLanguage()
   const queryClient = useQueryClient()
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: queryKeys.audit.all,
@@ -16,18 +18,18 @@ function AccountAuditPage() {
   })
 
   if (isLoading) {
-    return <LoadingState label="Loading account audit data..." />
+    return <LoadingState label={t('accountAudit.loading')} />
   }
 
   if (error) {
-    return <ErrorState message="Failed to load account audit data." />
+    return <ErrorState message={t('accountAudit.error')} />
   }
 
   if (!data) {
     return (
       <EmptyState
-        title="No audit data"
-        description="Connect an account or provide sample data to continue."
+        title={t('accountAudit.emptyTitle')}
+        description={t('accountAudit.emptyDesc')}
       />
     )
   }
@@ -35,47 +37,48 @@ function AccountAuditPage() {
   return (
     <div className="space-y-6">
       {/* Header row */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm text-slate-400">Account Audit</p>
+          <p className="text-sm text-slate-400">{t('accountAudit.title')}</p>
           <p className="text-xs text-slate-500 mt-0.5">
             {data.accountName} · {data.broker}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full items-center justify-end gap-2 sm:w-auto sm:gap-3">
           {isFetching ? (
-            <span className="text-xs text-cyan-300">Refreshing...</span>
+            <span className="text-xs text-cyan-300">{t('common.refreshing')}</span>
           ) : null}
           <Button
             variant="secondary"
             onClick={() =>
               queryClient.invalidateQueries({ queryKey: queryKeys.audit.all })
             }
+            className="px-3 sm:px-4"
           >
-            Refresh
+            {t('common.refresh')}
           </Button>
         </div>
       </div>
 
       {/* Balance & Equity */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Balance" value={`$${data.balance.toLocaleString()}`} />
-        <StatCard label="Equity" value={`$${data.equity.toLocaleString()}`} />
-        <StatCard label="Risk Score" value={`${data.riskScore} / 100`} tone="accent" />
-        <StatCard label="Profit Factor" value={String(data.profitFactor)} />
+        <StatCard label={t('accountAudit.balance')} value={`$${data.balance.toLocaleString()}`} />
+        <StatCard label={t('accountAudit.equity')} value={`$${data.equity.toLocaleString()}`} />
+        <StatCard label={t('accountAudit.riskScore')} value={`${data.riskScore} / 100`} tone="accent" />
+        <StatCard label={t('accountAudit.profitFactor')} value={String(data.profitFactor)} />
       </div>
 
       {/* Risk metrics */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
-        <SectionCard title="Performance Metrics" subtitle="Core trading statistics">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SectionCard title={t('accountAudit.performanceTitle')} subtitle={t('accountAudit.performanceSubtitle')}>
           <div className="space-y-3">
-            <MetricRow label="Win Rate" value={`${data.winRate}%`} />
-            <MetricRow label="Max Drawdown" value={`${data.maxDrawdown}%`} warn={data.maxDrawdown > 10} />
-            <MetricRow label="Profit Factor" value={String(data.profitFactor)} />
+            <MetricRow label={t('accountAudit.winRate')} value={`${data.winRate}%`} />
+            <MetricRow label={t('accountAudit.maxDrawdown')} value={`${data.maxDrawdown}%`} warn={data.maxDrawdown > 10} />
+            <MetricRow label={t('accountAudit.profitFactor')} value={String(data.profitFactor)} />
           </div>
         </SectionCard>
 
-        <SectionCard title="AI Explanation" subtitle="Interpretability layer">
+        <SectionCard title={t('accountAudit.aiTitle')} subtitle={t('accountAudit.aiSubtitle')}>
           <p className="text-sm leading-7 text-slate-300">{data.aiExplanation}</p>
         </SectionCard>
       </div>

@@ -6,6 +6,7 @@ import EmptyState from '../components/ui/EmptyState'
 import ErrorState from '../components/ui/ErrorState'
 import LoadingState from '../components/ui/LoadingState'
 import StatCard from '../components/ui/StatCard'
+import { useLanguage } from '../i18n/LanguageContext'
 import { queryKeys } from '../lib/queryKeys'
 import { getForwardGateData } from '../services/api/forwardGate'
 
@@ -22,6 +23,7 @@ const GATE_DECISION_TONE = {
 }
 
 function ForwardGatePage() {
+  const { language, t } = useLanguage()
   const queryClient = useQueryClient()
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: queryKeys.forwardGate.all,
@@ -29,15 +31,15 @@ function ForwardGatePage() {
   })
 
   if (isLoading) {
-    return <LoadingState label="Loading forward/gate status..." />
+    return <LoadingState label={t('forwardGate.loading')} />
   }
 
   if (error) {
-    return <ErrorState message="Failed to load forward/gate data." />
+    return <ErrorState message={t('forwardGate.error')} />
   }
 
   if (!data) {
-    return <EmptyState title="No forward data" description="Forward status will appear here." />
+    return <EmptyState title={t('forwardGate.emptyTitle')} description={t('forwardGate.emptyDesc')} />
   }
 
   const statusTone = FORWARD_STATUS_TONE[data.forwardStatus] ?? 'default'
@@ -46,54 +48,75 @@ function ForwardGatePage() {
   return (
     <div className="space-y-6">
       {/* Header row */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm text-slate-400">Forward / Gate</p>
+          <p className="text-sm text-slate-400">{t('forwardGate.title')}</p>
           <p className="text-xs text-slate-500 mt-0.5">
             {data.strategyName} · {data.symbol}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full items-center justify-end gap-2 sm:w-auto sm:gap-3">
           {isFetching ? (
-            <span className="text-xs text-cyan-300">Refreshing...</span>
+            <span className="text-xs text-cyan-300">{t('common.refreshing')}</span>
           ) : null}
           <Button
             variant="secondary"
             onClick={() =>
               queryClient.invalidateQueries({ queryKey: queryKeys.forwardGate.all })
             }
+            className="px-3 sm:px-4"
           >
-            Refresh
+            {t('common.refresh')}
           </Button>
         </div>
       </div>
 
       {/* Status cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Trades Observed" value={String(data.tradesObserved)} />
-        <StatCard label="Pass Rate" value={`${data.passRate}%`} />
+        <StatCard label={t('forwardGate.tradesObserved')} value={String(data.tradesObserved)} />
+        <StatCard label={t('forwardGate.passRate')} value={`${data.passRate}%`} />
         <StatCard
-          label="Max Drawdown"
+          label={t('forwardGate.maxDrawdown')}
           value={`${data.maxDrawdown}%`}
           tone={data.maxDrawdown > 10 ? 'danger' : undefined}
         />
-        <StatCard label="Last Updated" value={data.lastUpdated} />
+        <StatCard label={t('forwardGate.lastUpdated')} value={data.lastUpdated} />
       </div>
 
       {/* Status badges + summary */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <SectionCard title="Validation Status" subtitle="Live forward test state">
+        <SectionCard title={t('forwardGate.validationTitle')} subtitle={t('forwardGate.validationSubtitle')}>
           <div className="space-y-4">
-            <StatusRow label="Forward Status">
-              <Badge tone={statusTone}>{data.forwardStatus}</Badge>
+            <StatusRow label={t('forwardGate.forwardStatus')}>
+              <Badge tone={statusTone}>
+                {language === 'zh'
+                  ? data.forwardStatus === 'RUNNING'
+                    ? '运行中'
+                    : data.forwardStatus === 'PAUSED'
+                      ? '已暂停'
+                      : data.forwardStatus === 'COMPLETED'
+                        ? '已完成'
+                        : data.forwardStatus
+                  : data.forwardStatus}
+              </Badge>
             </StatusRow>
-            <StatusRow label="Gate Decision">
-              <Badge tone={decisionTone}>{data.gateDecision}</Badge>
+            <StatusRow label={t('forwardGate.gateDecision')}>
+              <Badge tone={decisionTone}>
+                {language === 'zh'
+                  ? data.gateDecision === 'PASS'
+                    ? '通过'
+                    : data.gateDecision === 'PENDING'
+                      ? '待定'
+                      : data.gateDecision === 'FAIL'
+                        ? '失败'
+                        : data.gateDecision
+                  : data.gateDecision}
+              </Badge>
             </StatusRow>
           </div>
         </SectionCard>
 
-        <SectionCard title="Summary" subtitle="Interpretation">
+        <SectionCard title={t('forwardGate.summaryTitle')} subtitle={t('forwardGate.summarySubtitle')}>
           <p className="text-sm leading-7 text-slate-300">{data.summary}</p>
         </SectionCard>
       </div>

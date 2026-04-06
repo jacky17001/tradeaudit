@@ -1,18 +1,30 @@
 import { NavLink } from 'react-router-dom'
 import { navItemsMock as navItems } from '../data/mock/navigation'
+import { useLanguage } from '../i18n/LanguageContext'
 
-function Sidebar() {
-  return (
-    <aside className="w-64 shrink-0 border-r border-slate-800/70 bg-slate-950/70 p-5">
+const navLabelKeyByPath = {
+  '/': 'sidebar.home',
+  '/dashboard': 'sidebar.dashboard',
+  '/account-audit': 'sidebar.accountAudit',
+  '/backtests': 'sidebar.backtests',
+  '/forward-gate': 'sidebar.forwardGate',
+}
+
+function Sidebar({ isOpen = false, onClose }) {
+  const { t } = useLanguage()
+
+  const content = (
+    <>
       <div className="mb-8">
         <p className="text-xs uppercase tracking-[0.24em] text-cyan-400">TradeAudit</p>
-        <h1 className="mt-2 text-xl font-semibold text-slate-100">Risk Intelligence</h1>
+        <h1 className="mt-2 text-xl font-semibold text-slate-100">{t('sidebar.riskIntelligence')}</h1>
       </div>
       <nav className="space-y-2">
         {navItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
+            onClick={onClose}
             className={({ isActive }) =>
               `block rounded-lg px-3 py-2 text-sm transition ${
                 isActive
@@ -21,11 +33,33 @@ function Sidebar() {
               }`
             }
           >
-            {item.label}
+            {t(navLabelKeyByPath[item.path] || 'sidebar.home')}
           </NavLink>
         ))}
       </nav>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      <aside className="hidden w-64 shrink-0 border-r border-slate-800/70 bg-slate-950/70 p-5 md:block">
+        {content}
+      </aside>
+
+      {isOpen ? (
+        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            aria-label="Close sidebar"
+            className="absolute inset-0 bg-slate-950/65"
+            onClick={onClose}
+          />
+          <aside className="relative z-10 h-full w-72 max-w-[85vw] border-r border-slate-800/70 bg-slate-950 p-5 shadow-2xl shadow-slate-950/70">
+            {content}
+          </aside>
+        </div>
+      ) : null}
+    </>
   )
 }
 

@@ -1,37 +1,39 @@
 import { Link } from 'react-router-dom'
 import SectionCard from '../components/SectionCard'
 import Button from '../components/ui/Button'
+import { useLanguage } from '../i18n/LanguageContext'
 
 function HomePage() {
+  const { t } = useLanguage()
+
   return (
     <div className="space-y-6">
       <SectionCard
         title="TradeAudit"
-        subtitle="Audit-first operating layer for strategy risk control and gate readiness"
+        subtitle={t('home.subtitle')}
       >
         <p className="max-w-3xl text-sm leading-7 text-slate-300">
-          TradeAudit helps teams evaluate strategy quality, monitor account behavior, and ship
-          forward-ready systems with confidence. This v1 frontend is structured for rapid expansion.
+          {t('home.description')}
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
           <Link to="/dashboard">
-            <Button>Open Dashboard</Button>
+            <Button>{t('home.openDashboard')}</Button>
           </Link>
           <Link to="/account-audit">
-            <Button variant="secondary">Investor Account Audit</Button>
+            <Button variant="secondary">{t('home.investorAccountAudit')}</Button>
           </Link>
         </div>
       </SectionCard>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <SectionCard title="Backtests" subtitle="Historical performance consistency">
-          <p className="text-sm text-slate-300">Compare returns, drawdown profile, and robustness.</p>
+        <SectionCard title={t('home.backtestsTitle')} subtitle={t('home.backtestsSubtitle')}>
+          <p className="text-sm text-slate-300">{t('home.backtestsDesc')}</p>
         </SectionCard>
-        <SectionCard title="Forward Validation" subtitle="Live behavior under market pressure">
-          <p className="text-sm text-slate-300">Track forward stability and detect regime drift early.</p>
+        <SectionCard title={t('home.forwardValidationTitle')} subtitle={t('home.forwardValidationSubtitle')}>
+          <p className="text-sm text-slate-300">{t('home.forwardValidationDesc')}</p>
         </SectionCard>
-        <SectionCard title="Gate Decisions" subtitle="Promotion readiness summary">
-          <p className="text-sm text-slate-300">Convert metrics and behavior signals into clear actions.</p>
+        <SectionCard title={t('home.gateDecisionTitle')} subtitle={t('home.gateDecisionSubtitle')}>
+          <p className="text-sm text-slate-300">{t('home.gateDecisionDesc')}</p>
         </SectionCard>
       </div>
     </div>
