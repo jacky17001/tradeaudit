@@ -5,6 +5,7 @@ import sqlite3
 from pathlib import Path
 
 from db.sqlite import connection_scope, resolve_db_path
+from services.backtests_import_service import import_backtests_csv
 
 logger = logging.getLogger(__name__)
 
@@ -21,40 +22,36 @@ def init_schema() -> None:
         schema_sql = SCHEMA_PATH.read_text(encoding='utf-8')
         connection.executescript(schema_sql)
 
+        # Lightweight migration for existing DBs created before tradeCount column was added.
+        existing_columns = {
+            row['name']
+            for row in connection.execute('PRAGMA table_info(backtests)').fetchall()
+        }
+        if 'tradeCount' not in existing_columns:
+            connection.execute(
+                'ALTER TABLE backtests ADD COLUMN tradeCount INTEGER NOT NULL DEFAULT 0'
+            )
+
+        import_job_columns = {
+            row['name']
+            for row in connection.execute('PRAGMA table_info(import_jobs)').fetchall()
+        }
+        if import_job_columns and 'invalidRowCount' not in import_job_columns:
+            connection.execute(
+                'ALTER TABLE import_jobs ADD COLUMN invalidRowCount INTEGER NOT NULL DEFAULT 0'
+            )
+
 
 def import_backtests() -> int:
     if not BACKTESTS_CSV_PATH.exists():
         return 0
 
-    with BACKTESTS_CSV_PATH.open('r', encoding='utf-8', newline='') as csv_file:
-        rows = list(csv.DictReader(csv_file))
-
-    with connection_scope() as connection:
-        connection.execute('DELETE FROM backtests')
-        for item in rows:
-            connection.execute(
-                '''
-                INSERT INTO backtests (
-                    id, name, symbol, timeframe,
-                    returnPct, winRate, maxDrawdown, profitFactor,
-                    score, decision
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''',
-                (
-                    item.get('id', ''),
-                    item.get('name', ''),
-                    item.get('symbol', ''),
-                    item.get('timeframe', ''),
-                    float(item.get('returnPct', 0) or 0),
-                    float(item.get('winRate', 0) or 0),
-                    float(item.get('maxDrawdown', 0) or 0),
-                    float(item.get('profitFactor', 0) or 0),
-                    int(float(item.get('score', 0) or 0)),
-                    item.get('decision', 'NEEDS_IMPROVEMENT'),
-                ),
-            )
-
-    return len(rows)
+    result = import_backtests_csv(
+        BACKTESTS_CSV_PATH,
+        mode='replace',
+        source_type='seed-csv',
+    )
+    return int(result['importedCount'])
 
 
 def import_account_audit() -> int:

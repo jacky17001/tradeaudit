@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import EvaluationSummaryCard from '../components/evaluation/EvaluationSummaryCard'
 import SectionCard from '../components/SectionCard'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -8,6 +9,7 @@ import LoadingState from '../components/ui/LoadingState'
 import StatCard from '../components/ui/StatCard'
 import { useLanguage } from '../i18n/LanguageContext'
 import { queryKeys } from '../lib/queryKeys'
+import { getEvaluationHistory } from '../services/api/evaluationHistory'
 import { getForwardGateData } from '../services/api/forwardGate'
 
 const FORWARD_STATUS_TONE = {
@@ -30,6 +32,12 @@ function ForwardGatePage() {
     queryFn: getForwardGateData,
   })
 
+  const { data: historyItems = [] } = useQuery({
+    queryKey: queryKeys.evaluations.history('forward-gate', 'forward-main', 5),
+    queryFn: () => getEvaluationHistory('forward-gate', 'forward-main', 5),
+    enabled: !!data,
+  })
+
   if (isLoading) {
     return <LoadingState label={t('forwardGate.loading')} />
   }
@@ -44,6 +52,12 @@ function ForwardGatePage() {
 
   const statusTone = FORWARD_STATUS_TONE[data.forwardStatus] ?? 'default'
   const decisionTone = GATE_DECISION_TONE[data.gateDecision] ?? 'default'
+  const breakdownLabels = {
+    forwardStatus: t('forwardGate.forwardStatus'),
+    sampleSize: t('forwardGate.tradesObserved'),
+    passRate: t('forwardGate.passRate'),
+    maxDrawdown: t('forwardGate.maxDrawdown'),
+  }
 
   return (
     <div className="space-y-6">
@@ -82,6 +96,31 @@ function ForwardGatePage() {
         />
         <StatCard label={t('forwardGate.lastUpdated')} value={data.lastUpdated} />
       </div>
+
+      <EvaluationSummaryCard
+        finalScore={data.finalScore}
+        scoreBreakdown={data.scoreBreakdown}
+        decision={data.decision}
+        decisionReason={data.decisionReason}
+        recommendedAction={data.recommendedAction}
+        explanation={data.explanation}
+        breakdownLabels={breakdownLabels}
+        hardFailTriggered={data.hardFailTriggered}
+        hardFailReasons={data.hardFailReasons}
+        strongestFactor={data.strongestFactor}
+        weakestFactor={data.weakestFactor}
+        confidenceLevel={data.confidenceLevel}
+        sampleAdequacy={data.sampleAdequacy}
+        dataSourceType={data.dataSourceType}
+        evaluatedAt={data.evaluatedAt}
+        rulesVersion={data.rulesVersion}
+        datasetVersion={data.datasetVersion}
+        previousScore={data.previousScore}
+        scoreDelta={data.scoreDelta}
+        previousDecision={data.previousDecision}
+        decisionChanged={data.decisionChanged}
+        historyItems={historyItems}
+      />
 
       {/* Status badges + summary */}
       <div className="grid gap-4 lg:grid-cols-2">

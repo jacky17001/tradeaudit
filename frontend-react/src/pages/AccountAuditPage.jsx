@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import EvaluationSummaryCard from '../components/evaluation/EvaluationSummaryCard'
 import SectionCard from '../components/SectionCard'
 import Button from '../components/ui/Button'
 import EmptyState from '../components/ui/EmptyState'
@@ -8,6 +9,7 @@ import StatCard from '../components/ui/StatCard'
 import { useLanguage } from '../i18n/LanguageContext'
 import { queryKeys } from '../lib/queryKeys'
 import { getAuditData } from '../services/api/audit'
+import { getEvaluationHistory } from '../services/api/evaluationHistory'
 
 function AccountAuditPage() {
   const { t } = useLanguage()
@@ -15,6 +17,12 @@ function AccountAuditPage() {
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: queryKeys.audit.all,
     queryFn: getAuditData,
+  })
+
+  const { data: historyItems = [] } = useQuery({
+    queryKey: queryKeys.evaluations.history('account-audit', 'account-main', 5),
+    queryFn: () => getEvaluationHistory('account-audit', 'account-main', 5),
+    enabled: !!data,
   })
 
   if (isLoading) {
@@ -32,6 +40,13 @@ function AccountAuditPage() {
         description={t('accountAudit.emptyDesc')}
       />
     )
+  }
+
+  const breakdownLabels = {
+    riskScore: t('accountAudit.riskScore'),
+    maxDrawdown: t('accountAudit.maxDrawdown'),
+    winRate: t('accountAudit.winRate'),
+    profitFactor: t('accountAudit.profitFactor'),
   }
 
   return (
@@ -67,6 +82,31 @@ function AccountAuditPage() {
         <StatCard label={t('accountAudit.riskScore')} value={`${data.riskScore} / 100`} tone="accent" />
         <StatCard label={t('accountAudit.profitFactor')} value={String(data.profitFactor)} />
       </div>
+
+      <EvaluationSummaryCard
+        finalScore={data.finalScore}
+        scoreBreakdown={data.scoreBreakdown}
+        decision={data.decision}
+        decisionReason={data.decisionReason}
+        recommendedAction={data.recommendedAction}
+        explanation={data.explanation}
+        breakdownLabels={breakdownLabels}
+        hardFailTriggered={data.hardFailTriggered}
+        hardFailReasons={data.hardFailReasons}
+        strongestFactor={data.strongestFactor}
+        weakestFactor={data.weakestFactor}
+        confidenceLevel={data.confidenceLevel}
+        sampleAdequacy={data.sampleAdequacy}
+        dataSourceType={data.dataSourceType}
+        evaluatedAt={data.evaluatedAt}
+        rulesVersion={data.rulesVersion}
+        datasetVersion={data.datasetVersion}
+        previousScore={data.previousScore}
+        scoreDelta={data.scoreDelta}
+        previousDecision={data.previousDecision}
+        decisionChanged={data.decisionChanged}
+        historyItems={historyItems}
+      />
 
       {/* Risk metrics */}
       <div className="grid gap-4 lg:grid-cols-2">

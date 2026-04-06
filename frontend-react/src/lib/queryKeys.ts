@@ -12,4 +12,11 @@ export const queryKeys = {
   forwardGate: {
     all: ['forward-gate'] as const,
   },
+  evaluations: {
+    history: (entityType: string, entityId: string, limit: number) =>
+      ['evaluations', 'history', entityType, entityId, limit] as const,
+  },
+  importJobs: {
+    recent: (limit: number) => ['import-jobs', 'recent', limit] as const,
+  },
 }

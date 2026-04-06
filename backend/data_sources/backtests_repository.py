@@ -1,6 +1,7 @@
 from typing import Any
 
 from db.sqlite import connection_scope
+from services.backtests_scoring_service import evaluate_backtest
 
 
 def _to_float(value: str, default: float = 0.0) -> float:
@@ -26,6 +27,7 @@ def query_backtests_page(page: int, page_size: int) -> dict[str, Any]:
             SELECT
                 id, name, symbol, timeframe,
                 returnPct, winRate, maxDrawdown, profitFactor,
+                tradeCount,
                 score, decision
             FROM backtests
             ORDER BY id
@@ -45,6 +47,7 @@ def query_backtests_page(page: int, page_size: int) -> dict[str, Any]:
                 "winRate": _to_float(row["winRate"]),
                 "maxDrawdown": _to_float(row["maxDrawdown"]),
                 "profitFactor": _to_float(row["profitFactor"]),
+                "tradeCount": _to_int(row["tradeCount"]),
                 "score": _to_int(row["score"]),
                 "decision": row["decision"],
             }
@@ -57,19 +60,40 @@ def query_backtests_page(page: int, page_size: int) -> dict[str, Any]:
 
 def query_backtests_summary() -> dict[str, int]:
     with connection_scope() as connection:
-        summary_cursor = connection.execute(
+        rows_cursor = connection.execute(
             """
             SELECT
-                COUNT(*) AS totalAudits,
-                COALESCE(ROUND(AVG(score), 0), 0) AS averageScore,
-                COALESCE(ROUND(100.0 * SUM(CASE WHEN decision = 'PASS' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 0), 0) AS passRate
+                returnPct, winRate, maxDrawdown, profitFactor, tradeCount
             FROM backtests
             """
         )
-        row = summary_cursor.fetchone()
+        rows = rows_cursor.fetchall()
+
+    total = len(rows)
+    if total == 0:
+        return {
+            "totalAudits": 0,
+            "averageScore": 0,
+            "passRate": 0,
+        }
+
+    evaluated = [
+        evaluate_backtest(
+            {
+                "returnPct": _to_float(row["returnPct"]),
+                "winRate": _to_float(row["winRate"]),
+                "maxDrawdown": _to_float(row["maxDrawdown"]),
+                "profitFactor": _to_float(row["profitFactor"]),
+                "tradeCount": _to_int(row["tradeCount"]),
+            }
+        )
+        for row in rows
+    ]
+    score_sum = sum(item["finalScore"] for item in evaluated)
+    pass_count = sum(1 for item in evaluated if item["decision"] == "PASS")
 
     return {
-        "totalAudits": _to_int(row["totalAudits"]),
-        "averageScore": _to_int(row["averageScore"]),
-        "passRate": _to_int(row["passRate"]),
+        "totalAudits": total,
+        "averageScore": round(score_sum / total),
+        "passRate": round((100.0 * pass_count) / total),
     }

@@ -21,4 +21,16 @@ export const auditMock: AuditPayload = {
   ],
   aiExplanation:
     'AI Explanation: Performance is stable with controlled drawdown. Trade exits are slightly early in volatile sessions, so discipline around target holding is recommended.',
+  finalScore: 71,
+  scoreBreakdown: {
+    riskScore: 28,
+    maxDrawdown: 20,
+    winRate: 15,
+    profitFactor: 8,
+  },
+  decision: 'PASS',
+  decisionReason: 'All account quality gates satisfied',
+  recommendedAction: 'Maintain current risk protocol and continue monitored execution.',
+  explanation:
+    'Account evaluation PASS with final score 71/100. Risk profile is acceptable for current stage, with further upside from tighter discipline in volatile sessions.',
 }

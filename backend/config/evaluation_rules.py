@@ -1,0 +1,152 @@
+EVALUATION_RULES_VERSION = "v0.2.0-rules-v1"
+
+EVALUATION_RULES = {
+    "backtests": {
+        "score_bands": {
+            "returnPct": [
+                {"max": 0, "score": 0},
+                {"max": 3, "score": 5},
+                {"max": 6, "score": 10},
+                {"max": 10, "score": 15},
+                {"max": 15, "score": 20},
+                {"score": 25},
+            ],
+            "maxDrawdown": [
+                {"max": 5, "score": 25},
+                {"max": 8, "score": 22},
+                {"max": 12, "score": 18},
+                {"max": 15, "score": 10},
+                {"max": 20, "score": 5},
+                {"score": 0},
+            ],
+            "profitFactor": [
+                {"lt": 1.0, "score": 0},
+                {"lt": 1.1, "score": 5},
+                {"lt": 1.2, "score": 10},
+                {"lt": 1.4, "score": 14},
+                {"lt": 1.6, "score": 17},
+                {"score": 20},
+            ],
+            "winRate": [
+                {"lt": 30, "score": 0},
+                {"lt": 35, "score": 4},
+                {"lt": 40, "score": 7},
+                {"lt": 45, "score": 10},
+                {"lt": 50, "score": 13},
+                {"score": 15},
+            ],
+            "tradeCount": [
+                {"lt": 10, "score": 0},
+                {"lt": 20, "score": 4},
+                {"lt": 30, "score": 8},
+                {"lt": 50, "score": 11},
+                {"lt": 100, "score": 13},
+                {"score": 15},
+            ],
+        },
+        "hard_fail": {
+            "tradeCount_lt": 20,
+            "profitFactor_lt": 1.0,
+            "maxDrawdown_gt": 20,
+            "returnPct_lte": 0,
+        },
+        "pass_gate": {
+            "tradeCount_gte": 30,
+            "profitFactor_gte": 1.2,
+            "maxDrawdown_lte": 12,
+            "returnPct_gt": 0,
+            "finalScore_gte": 70,
+        },
+    },
+    "account_audit": {
+        "score_bands": {
+            "riskScore": [
+                {"gte": 85, "score": 40},
+                {"gte": 75, "score": 34},
+                {"gte": 65, "score": 28},
+                {"gte": 55, "score": 20},
+                {"gte": 45, "score": 12},
+                {"score": 5},
+            ],
+            "maxDrawdown": [
+                {"max": 5, "score": 25},
+                {"max": 8, "score": 20},
+                {"max": 12, "score": 15},
+                {"max": 16, "score": 10},
+                {"max": 20, "score": 5},
+                {"score": 0},
+            ],
+            "winRate": [
+                {"gte": 55, "score": 15},
+                {"gte": 50, "score": 12},
+                {"gte": 45, "score": 9},
+                {"gte": 40, "score": 6},
+                {"gte": 35, "score": 3},
+                {"score": 0},
+            ],
+            "profitFactor": [
+                {"gte": 1.6, "score": 20},
+                {"gte": 1.4, "score": 16},
+                {"gte": 1.2, "score": 12},
+                {"gte": 1.1, "score": 8},
+                {"gte": 1.0, "score": 4},
+                {"score": 0},
+            ],
+        },
+        "hard_fail": {
+            "profitFactor_lt": 1.0,
+            "maxDrawdown_gt": 20,
+            "riskScore_lt": 45,
+        },
+        "pass_gate": {
+            "riskScore_gte": 70,
+            "maxDrawdown_lte": 12,
+            "profitFactor_gte": 1.2,
+            "winRate_gte": 45,
+            "finalScore_gte": 70,
+        },
+    },
+    "forward_gate": {
+        "score_bands": {
+            "forwardStatus": [
+                {"equals": "COMPLETED", "score": 30},
+                {"equals": "RUNNING", "score": 20},
+                {"equals": "PAUSED", "score": 10},
+                {"score": 0},
+            ],
+            "sampleSize": [
+                {"gte": 50, "score": 25},
+                {"gte": 30, "score": 18},
+                {"gte": 15, "score": 10},
+                {"gt": 0, "score": 5},
+                {"score": 0},
+            ],
+            "passRate": [
+                {"gte": 70, "score": 25},
+                {"gte": 60, "score": 20},
+                {"gte": 50, "score": 14},
+                {"gte": 40, "score": 8},
+                {"score": 0},
+            ],
+            "maxDrawdown": [
+                {"max": 6, "score": 20},
+                {"max": 10, "score": 15},
+                {"max": 14, "score": 10},
+                {"max": 20, "score": 5},
+                {"score": 0},
+            ],
+        },
+        "hard_fail": {
+            "forwardStatus_equals": "PAUSED",
+            "maxDrawdown_gt": 20,
+            "passRate_lt": 40,
+        },
+        "pass_gate": {
+            "forwardStatus_in": ["RUNNING", "COMPLETED"],
+            "sampleSize_gte": 30,
+            "passRate_gte": 60,
+            "maxDrawdown_lte": 12,
+            "finalScore_gte": 70,
+        },
+    },
+}

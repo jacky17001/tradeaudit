@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { navItemsMock as navItems } from '../data/mock/navigation'
 import { useLanguage } from '../i18n/LanguageContext'
 
@@ -15,10 +15,15 @@ function Sidebar({ isOpen = false, onClose }) {
 
   const content = (
     <>
-      <div className="mb-8">
+      <Link
+        to="/"
+        onClick={onClose}
+        className="mb-8 block rounded-lg px-1 py-1 transition hover:bg-slate-900/50"
+        aria-label="Go to home"
+      >
         <p className="text-xs uppercase tracking-[0.24em] text-cyan-400">TradeAudit</p>
         <h1 className="mt-2 text-xl font-semibold text-slate-100">{t('sidebar.riskIntelligence')}</h1>
-      </div>
+      </Link>
       <nav className="space-y-2">
         {navItems.map((item) => (
           <NavLink

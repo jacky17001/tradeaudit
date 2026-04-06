@@ -14,7 +14,27 @@ class ServiceTests(unittest.TestCase):
         with patch("services.account_audit_service.load_account_audit_summary", return_value=None):
             summary = get_account_audit_summary()
 
-        self.assertEqual(summary, AUDIT_SUMMARY)
+        self.assertEqual(summary["accountName"], AUDIT_SUMMARY["accountName"])
+        self.assertIn("finalScore", summary)
+        self.assertIn("scoreBreakdown", summary)
+        self.assertIn("decision", summary)
+        self.assertIn("decisionReason", summary)
+        self.assertIn("recommendedAction", summary)
+        self.assertIn("explanation", summary)
+        self.assertIn("hardFailTriggered", summary)
+        self.assertIn("hardFailReasons", summary)
+        self.assertIn("strongestFactor", summary)
+        self.assertIn("weakestFactor", summary)
+        self.assertIn("confidenceLevel", summary)
+        self.assertIn("sampleAdequacy", summary)
+        self.assertIn("dataSourceType", summary)
+        self.assertIn("evaluatedAt", summary)
+        self.assertIn("rulesVersion", summary)
+        self.assertIn("datasetVersion", summary)
+        self.assertIn("previousScore", summary)
+        self.assertIn("scoreDelta", summary)
+        self.assertIn("previousDecision", summary)
+        self.assertIn("decisionChanged", summary)
 
     def test_account_audit_service_fallbacks_to_mock_when_repo_raises(self):
         with patch(
@@ -23,7 +43,10 @@ class ServiceTests(unittest.TestCase):
         ):
             summary = get_account_audit_summary()
 
-        self.assertEqual(summary, AUDIT_SUMMARY)
+        self.assertEqual(summary["accountName"], AUDIT_SUMMARY["accountName"])
+        self.assertIn("finalScore", summary)
+        self.assertIn("hardFailTriggered", summary)
+        self.assertIn("evaluatedAt", summary)
 
     def test_account_audit_service_fallbacks_to_mock_when_sqlite_unavailable(self):
         with patch(
@@ -32,7 +55,10 @@ class ServiceTests(unittest.TestCase):
         ):
             summary = get_account_audit_summary()
 
-        self.assertEqual(summary, AUDIT_SUMMARY)
+        self.assertEqual(summary["accountName"], AUDIT_SUMMARY["accountName"])
+        self.assertIn("finalScore", summary)
+        self.assertIn("hardFailTriggered", summary)
+        self.assertIn("evaluatedAt", summary)
 
     def test_backtests_service_fallbacks_to_mock_when_real_rows_missing(self):
         with patch("services.backtests_service.query_backtests_page", side_effect=RuntimeError("db down")):
@@ -40,12 +66,52 @@ class ServiceTests(unittest.TestCase):
 
         self.assertEqual(payload["total"], len(BACKTESTS_ITEMS))
         self.assertEqual(len(payload["items"]), 2)
+        first = payload["items"][0]
+        self.assertIn("scoreBreakdown", first)
+        self.assertIn("finalScore", first)
+        self.assertIn("decisionReason", first)
+        self.assertIn("recommendedAction", first)
+        self.assertIn("explanation", first)
+        self.assertIn("hardFailTriggered", first)
+        self.assertIn("hardFailReasons", first)
+        self.assertIn("strongestFactor", first)
+        self.assertIn("weakestFactor", first)
+        self.assertIn("confidenceLevel", first)
+        self.assertIn("sampleAdequacy", first)
+        self.assertIn("dataSourceType", first)
+        self.assertIn("evaluatedAt", first)
+        self.assertIn("rulesVersion", first)
+        self.assertIn("datasetVersion", first)
+        self.assertIn("previousScore", first)
+        self.assertIn("scoreDelta", first)
+        self.assertIn("previousDecision", first)
+        self.assertIn("decisionChanged", first)
 
     def test_forward_gate_service_fallbacks_to_mock_when_repo_returns_none(self):
         with patch("services.forward_gate_service.load_forward_gate_summary", return_value=None):
             summary = get_forward_gate_summary()
 
-        self.assertEqual(summary, FORWARD_GATE_SUMMARY)
+        self.assertEqual(summary["strategyName"], FORWARD_GATE_SUMMARY["strategyName"])
+        self.assertIn("finalScore", summary)
+        self.assertIn("scoreBreakdown", summary)
+        self.assertIn("decision", summary)
+        self.assertIn("decisionReason", summary)
+        self.assertIn("recommendedAction", summary)
+        self.assertIn("explanation", summary)
+        self.assertIn("hardFailTriggered", summary)
+        self.assertIn("hardFailReasons", summary)
+        self.assertIn("strongestFactor", summary)
+        self.assertIn("weakestFactor", summary)
+        self.assertIn("confidenceLevel", summary)
+        self.assertIn("sampleAdequacy", summary)
+        self.assertIn("dataSourceType", summary)
+        self.assertIn("evaluatedAt", summary)
+        self.assertIn("rulesVersion", summary)
+        self.assertIn("datasetVersion", summary)
+        self.assertIn("previousScore", summary)
+        self.assertIn("scoreDelta", summary)
+        self.assertIn("previousDecision", summary)
+        self.assertIn("decisionChanged", summary)
 
     def test_forward_gate_service_fallbacks_to_mock_when_sqlite_unavailable(self):
         with patch(
@@ -54,4 +120,7 @@ class ServiceTests(unittest.TestCase):
         ):
             summary = get_forward_gate_summary()
 
-        self.assertEqual(summary, FORWARD_GATE_SUMMARY)
+        self.assertEqual(summary["strategyName"], FORWARD_GATE_SUMMARY["strategyName"])
+        self.assertIn("finalScore", summary)
+        self.assertIn("hardFailTriggered", summary)
+        self.assertIn("evaluatedAt", summary)
