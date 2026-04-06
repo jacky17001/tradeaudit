@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Investor Account Audit | TradeAudit</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo">TradeAudit</div>
+    <nav class="nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="#">Strategy Lab</a>
+      <a href="#">Backtests</a>
+      <a href="#">Forward</a>
+      <a href="account-audit.html">Account Audit</a>
+      <a href="#">Calendar</a>
+    </nav>
+    <div class="lang">EN | 中文</div>
+  </header>
+
+  <main class="container">
+    <section class="page-hero">
+      <h1>Investor Account Audit</h1>
+      <p>Connect a read-only MT5 investor account or prepare for statement-based audit.</p>
+    </section>
+
+    <section class="audit-form">
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="broker-server">Broker / Server</label>
+          <input id="broker-server" type="text" placeholder="Enter broker or server" />
+        </div>
+        <div class="form-group">
+          <label for="account-login">Account Login</label>
+          <input id="account-login" type="text" placeholder="Enter account login" />
+        </div>
+        <div class="form-group">
+          <label for="investor-password">Investor Password</label>
+          <input id="investor-password" type="password" placeholder="Enter investor password" />
+        </div>
+        <div class="form-group">
+          <label for="date-from">Date From</label>
+          <input id="date-from" type="date" />
+        </div>
+        <div class="form-group">
+          <label for="date-to">Date To</label>
+          <input id="date-to" type="date" />
+        </div>
+      </div>
+      <div class="form-actions">
+        <button id="connect-account-btn">Connect Read-Only Account</button>
+        <button id="run-audit-btn" class="secondary">Run Audit</button>
+      </div>
+      <p style="color: #b4bcc8; margin: 0;">TradeAudit uses read-only investor access for account analysis only.</p>
+    </section>
+
+    <section class="summary-cards">
+      <div class="card">
+        <h3>Account Status</h3>
+        <p id="account-status-value">Not Connected</p>
+      </div>
+      <div class="card">
+        <h3>Selected Date Range</h3>
+        <p id="selected-range-value">No range selected</p>
+      </div>
+      <div class="card">
+        <h3>Total Trades</h3>
+        <p id="total-trades-value">0</p>
+      </div>
+    </section>
+
+    <section class="analysis-grid">
+      <div class="card wide-card">
+        <h3>Performance Summary</h3>
+        <p>Win Rate: <span id="win-rate-value">--</span></p>
+        <p>Profit Factor: <span id="profit-factor-value">--</span></p>
+        <p>Max Drawdown: <span id="max-drawdown-value">--</span></p>
+      </div>
+      <div class="card wide-card">
+        <h3>Behavior Analysis</h3>
+        <p>Early exits: <span id="early-exits-value">--</span></p>
+        <p>Stop loss violations: <span id="sl-violations-value">--</span></p>
+        <p>Overtrading risk: <span id="overtrading-risk-value">--</span></p>
+      </div>
+      <div class="card wide-card">
+        <h3>Audit Notes</h3>
+        <p id="audit-notes-value">Audit results will appear here after account analysis.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

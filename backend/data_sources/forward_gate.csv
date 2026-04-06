@@ -1,0 +1,2 @@
+strategyName,symbol,forwardStatus,gateDecision,lastUpdated,tradesObserved,passRate,maxDrawdown,summary
+TrendFibPA_v8,EURUSD,COMPLETED,PASS,2026-04-06 19:10,34,68,5.4,"Forward validation completed with stable drawdown and acceptable pass profile."

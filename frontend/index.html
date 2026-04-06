@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TradeAudit</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo">TradeAudit</div>
+    <nav class="nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="#">Strategy Lab</a>
+      <a href="#">Backtests</a>
+      <a href="#">Forward</a>
+      <a href="account-audit.html">Account Audit</a>
+      <a href="#">Calendar</a>
+    </nav>
+    <div class="lang">EN | 中文</div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="hero-left">
+        <h1>Audit your trading system before real money does.</h1>
+        <p>
+          TradeAudit helps traders review strategies, analyze investor accounts,
+          validate forward performance, and make better gate decisions.
+        </p>
+        <div class="hero-actions">
+          <button>Run Strategy Audit</button>
+          <a class="button secondary" href="account-audit.html">Investor Account Audit</a>
+        </div>
+      </div>
+
+      <div class="hero-right">
+        <div class="card">
+          <h3>Latest Audit</h3>
+          <p>Score: 72 / 100</p>
+          <p>Risk: Medium</p>
+          <p>Gate: Review Needed</p>
+        </div>
+        <div class="card">
+          <h3>Forward Status</h3>
+          <p>Trades: 18</p>
+          <p>Win Rate: 44%</p>
+          <p>PF: 1.28</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="features">
+      <div class="card">
+        <h3>Backtest Audit</h3>
+        <p>Review strategy performance, drawdown, and consistency.</p>
+      </div>
+      <div class="card">
+        <h3>Investor Account Audit</h3>
+        <p>Analyze real MT5 trading history by selected date range.</p>
+      </div>
+      <div class="card">
+        <h3>Forward / Gate Report</h3>
+        <p>Check whether the strategy is ready for the next stage.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,2 @@
+accountName,broker,balance,equity,riskScore,maxDrawdown,winRate,profitFactor,aiExplanation
+Demo Account,Vantage Demo,11250,10980,76,7.9,61,1.44,"Risk profile is improving. Drawdown and consistency are moving in the right direction."
