@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useLanguage } from '../i18n/LanguageContext'
-import { endpoints } from '../services/endpoints'
 import Button from '../components/ui/Button'
+import { getConfigStatus, loginWithPassword } from '../services/api/auth'
 
 export default function LoginPage({ onAuthSuccess, initialError = '' }) {
   const { t } = useLanguage()
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [configWarning, setConfigWarning] = useState('')
 
   useEffect(() => {
     if (initialError) {
@@ -15,33 +16,48 @@ export default function LoginPage({ onAuthSuccess, initialError = '' }) {
     }
   }, [initialError])
 
+  useEffect(() => {
+    let isMounted = true
+
+    const loadConfigStatus = async () => {
+      try {
+        const status = await getConfigStatus()
+        if (!isMounted || !status?.configurationWarning) return
+
+        const warnings = []
+        if (!status.adminPasswordConfigured) {
+          warnings.push(t('login.adminPasswordNotConfigured'))
+        }
+        if (status.unsafeAdminPassword) {
+          warnings.push(t('login.unsafeAdminPassword'))
+        }
+        setConfigWarning(warnings.join(' · '))
+      } catch {
+        // Keep login page resilient even if config status endpoint is unavailable.
+      }
+    }
+
+    loadConfigStatus()
+    return () => {
+      isMounted = false
+    }
+  }, [t])
+
   const handleLogin = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
     try {
-      const response = await fetch(endpoints.auth.login, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.message || t('login.invalidPassword'))
-      }
-
-      const data = await response.json()
-      
-      // Store token
-      localStorage.setItem('_tradeaudit_token', data.token)
-      localStorage.setItem('_tradeaudit_token_expires_at', data.expiresAt)
-
-      // Callback
-      onAuthSuccess(data.token)
+      const session = await loginWithPassword(password)
+      onAuthSuccess({ token: session.token, expiresAt: session.expiresAt })
     } catch (err) {
-      setError(err.message || t('login.invalidPassword'))
+      const code = err?.details?.error?.code || ''
+      if (code === 'UNAUTHORIZED') {
+        setError(t('login.invalidPassword'))
+      } else {
+        setError(err?.details?.error?.message || err?.message || t('login.invalidPassword'))
+      }
     } finally {
       setLoading(false)
     }
@@ -53,8 +69,15 @@ export default function LoginPage({ onAuthSuccess, initialError = '' }) {
         <div className="rounded-xl border border-slate-700 bg-slate-900/80 shadow-2xl shadow-slate-950/60 p-8">
           <div className="mb-6 text-center">
             <h1 className="text-2xl font-bold text-slate-100 mb-2">TradeAudit</h1>
-            <p className="text-sm text-slate-400">{t('login.protectedAccess')}</p>
+            <p className="text-sm text-slate-400">{t('login.protectedAccessRequired')}</p>
           </div>
+
+          {configWarning && (
+            <div className="mb-4 rounded-lg border border-amber-700/60 bg-amber-950/30 p-3 text-xs text-amber-100">
+              <p className="font-semibold">{t('login.configurationWarning')}</p>
+              <p className="mt-1">{configWarning}</p>
+            </div>
+          )}
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>

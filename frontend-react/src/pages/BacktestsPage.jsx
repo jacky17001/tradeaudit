@@ -10,7 +10,9 @@ import EmptyState from '../components/ui/EmptyState'
 import ErrorState from '../components/ui/ErrorState'
 import LoadingState from '../components/ui/LoadingState'
 import TableShell from '../components/ui/TableShell'
+import ActivityTimeline from '../components/ui/ActivityTimeline'
 import { useLanguage } from '../i18n/LanguageContext'
+import { asText, downloadMarkdown, formatGeneratedAt, timelineLines, toNumberText } from '../lib/exportUtils'
 import { queryKeys } from '../lib/queryKeys'
 import {
   activateImportJob,
@@ -27,6 +29,7 @@ import {
 } from '../services/api/backtests'
 import { getEvaluationHistory } from '../services/api/evaluationHistory'
 import { createForwardRun } from '../services/api/forwardRuns'
+import { getStrategyTimeline } from '../services/api/timeline'
 
 const PAGE_SIZE = 10
 const DEFAULT_IMPORT_PATH = 'backend/data_sources/backtests.csv'
@@ -189,6 +192,15 @@ function BacktestsPage() {
   } = useQuery({
     queryKey: queryKeys.backtests.lifecycle(lifecycleStrategyId),
     queryFn: () => getStrategyLifecycle(lifecycleStrategyId),
+    enabled: Boolean(lifecycleRow?.id),
+  })
+
+  const {
+    data: strategyTimelineData,
+    isLoading: isStrategyTimelineLoading,
+  } = useQuery({
+    queryKey: queryKeys.backtests.timeline(lifecycleStrategyId, 30),
+    queryFn: () => getStrategyTimeline(lifecycleStrategyId, 30),
     enabled: Boolean(lifecycleRow?.id),
   })
 
@@ -955,6 +967,8 @@ function BacktestsPage() {
         <StrategyLifecycleModal
           row={lifecycleRow}
           lifecycle={lifecycleData}
+          timelineItems={strategyTimelineData?.items || []}
+          isTimelineLoading={isStrategyTimelineLoading}
           isLoading={isLifecycleLoading}
           error={lifecycleError}
           onClose={() => setLifecycleRow(null)}
@@ -1203,12 +1217,70 @@ function JobFact({ label, value }) {
   )
 }
 
-function StrategyLifecycleModal({ row, lifecycle, isLoading, error, onClose, t, language, breakdownLabels }) {
+function StrategyLifecycleModal({
+  row,
+  lifecycle,
+  timelineItems,
+  isTimelineLoading,
+  isLoading,
+  error,
+  onClose,
+  t,
+  language,
+  breakdownLabels,
+}) {
   const backtest = lifecycle?.backtest
   const sourceJob = lifecycle?.sourceJob
   const latestRun = lifecycle?.latestForwardRun
   const latestSummary = lifecycle?.latestSummary
   const latestGateResult = lifecycle?.latestGateResult
+  const [exportMessage, setExportMessage] = useState('')
+
+  const handleExportLifecycle = () => {
+    try {
+      if (!lifecycle && (!timelineItems || timelineItems.length === 0)) {
+        setExportMessage(t('export.nothingToExport'))
+        return
+      }
+
+      const lines = [
+        `# ${t('export.exportLifecycle')}`,
+        '',
+        `- ${t('export.generatedAt')}: ${formatGeneratedAt()}`,
+        '',
+        '## Strategy',
+        `- ID: ${asText(row?.id)}`,
+        `- Name: ${asText(row?.name)}`,
+        `- Symbol: ${asText(row?.symbol)}`,
+        `- Timeframe: ${asText(row?.timeframe)}`,
+        '',
+        '## Current Status',
+        `- Candidate: ${lifecycle?.candidate?.isCandidate ? 'yes' : 'no'}`,
+        `- Latest Run Status: ${asText(latestRun?.status)}`,
+        `- Latest Gate Decision: ${asText(latestGateResult?.gateDecision)}`,
+        '',
+        '## Summary Metrics',
+        `- Backtest Final Score: ${asText(backtest?.finalScore)}`,
+        `- Backtest Decision: ${asText(backtest?.decision)}`,
+        `- Forward Total Trades: ${asText(latestSummary?.totalTrades)}`,
+        `- Forward Win Rate: ${toNumberText(latestSummary?.winRate, 1)}`,
+        `- Forward PnL: ${toNumberText(latestSummary?.pnl, 2)}`,
+        `- Forward Max Drawdown: ${toNumberText(latestSummary?.maxDrawdown, 2)}`,
+        '',
+        '## Latest Note / Action',
+        `- Run Note: ${asText(latestRun?.note)}`,
+        `- Gate Notes: ${asText(latestGateResult?.notes)}`,
+        '',
+        '## Timeline (Recent)',
+        ...timelineLines(timelineItems, 10),
+      ]
+
+      downloadMarkdown(`strategy-lifecycle-${asText(row?.id, 'unknown')}`, `${lines.join('\n')}\n`)
+      setExportMessage(t('export.exportReady'))
+    } catch {
+      setExportMessage(t('export.exportFailed'))
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6">
@@ -1219,14 +1291,24 @@ function StrategyLifecycleModal({ row, lifecycle, isLoading, error, onClose, t, 
             <h3 className="mt-1 text-lg font-semibold text-slate-100">{row.name}</h3>
             <p className="mt-1 text-sm text-slate-400">{row.id} · {row.symbol} · {row.timeframe}</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 transition hover:bg-slate-700"
-          >
-            {t('backtests.lifecycleClose')}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExportLifecycle}
+              className="rounded-md border border-emerald-700/60 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200 transition hover:bg-emerald-900/30"
+            >
+              {t('export.exportLifecycle')}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 transition hover:bg-slate-700"
+            >
+              {t('backtests.lifecycleClose')}
+            </button>
+          </div>
         </div>
+        {exportMessage ? <p className="mt-3 text-xs text-emerald-300">{exportMessage}</p> : null}
 
         {isLoading ? <LoadingState label={t('backtests.lifecycleLoading')} /> : null}
         {error ? <ErrorState message={t('backtests.lifecycleError')} /> : null}
@@ -1386,6 +1468,15 @@ function StrategyLifecycleModal({ row, lifecycle, isLoading, error, onClose, t, 
                 ) : (
                   <LifecycleEmpty label={t('backtests.lifecycleSourceEmpty')} />
                 )}
+              </LifecycleSection>
+
+              <LifecycleSection title={t('timeline.activityTimeline')} subtitle={t('timeline.timeline')}>
+                <ActivityTimeline
+                  items={timelineItems}
+                  isLoading={isTimelineLoading}
+                  t={t}
+                  language={language}
+                />
               </LifecycleSection>
             </div>
           </div>

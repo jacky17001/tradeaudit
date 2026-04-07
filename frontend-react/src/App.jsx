@@ -5,6 +5,7 @@ import ProtectedRoute from './layout/ProtectedRoute'
 import HomePage from './pages/HomePage'
 import DashboardPage from './pages/DashboardPage'
 import AccountAuditPage from './pages/AccountAuditPage'
+import AuditCasesPage from './pages/AuditCasesPage'
 import BacktestsPage from './pages/BacktestsPage'
 import ForwardGatePage from './pages/ForwardGatePage'
 
@@ -23,6 +24,7 @@ function App() {
       >
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/account-audit" element={<AccountAuditPage />} />
+        <Route path="/audit-cases" element={<AuditCasesPage />} />
         <Route path="/backtests" element={<BacktestsPage />} />
         <Route path="/forward-gate" element={<ForwardGatePage />} />
       </Route>

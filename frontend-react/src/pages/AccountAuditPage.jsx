@@ -7,7 +7,9 @@ import EmptyState from '../components/ui/EmptyState'
 import ErrorState from '../components/ui/ErrorState'
 import LoadingState from '../components/ui/LoadingState'
 import StatCard from '../components/ui/StatCard'
+import ActivityTimeline from '../components/ui/ActivityTimeline'
 import { useLanguage } from '../i18n/LanguageContext'
+import { asText, downloadMarkdown, formatGeneratedAt, timelineLines, toNumberText } from '../lib/exportUtils'
 import { queryKeys } from '../lib/queryKeys'
 import {
   createAuditManualIntake,
@@ -24,6 +26,7 @@ import {
   getAccountAuditReview,
 } from '../services/api/audit'
 import { getEvaluationHistory } from '../services/api/evaluationHistory'
+import { getAccountAuditTimeline } from '../services/api/timeline'
 
 const INTAKE_SOURCE_OPTIONS = ['STATEMENT', 'ACCOUNT_HISTORY', 'MANUAL']
 const INTAKE_JOBS_LIMIT = 5
@@ -81,6 +84,8 @@ function AccountAuditPage() {
   const [summarySourceFilter, setSummarySourceFilter] = useState(null)
   const [summaryDetailItem, setSummaryDetailItem] = useState(null)
   const [reviewDetailItem, setReviewDetailItem] = useState(null)
+  const [reviewExportMessage, setReviewExportMessage] = useState('')
+  const [summaryExportMessage, setSummaryExportMessage] = useState('')
 
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: queryKeys.audit.all,
@@ -127,6 +132,17 @@ function AccountAuditPage() {
       ? queryKeys.audit.review(reviewDetailItem.sourceType, reviewDetailItem.sourceRefId)
       : [],
     queryFn: () => getAccountAuditReview(reviewDetailItem.sourceType, reviewDetailItem.sourceRefId),
+    enabled: reviewDetailItem !== null,
+  })
+
+  const {
+    data: reviewTimelineData,
+    isLoading: reviewTimelineLoading,
+  } = useQuery({
+    queryKey: reviewDetailItem
+      ? queryKeys.audit.timeline(reviewDetailItem.sourceType, reviewDetailItem.sourceRefId, 30)
+      : [],
+    queryFn: () => getAccountAuditTimeline(reviewDetailItem.sourceType, reviewDetailItem.sourceRefId, 30),
     enabled: reviewDetailItem !== null,
   })
 
@@ -243,6 +259,87 @@ function AccountAuditPage() {
     maxDrawdown: t('accountAudit.maxDrawdown'),
     winRate: t('accountAudit.winRate'),
     profitFactor: t('accountAudit.profitFactor'),
+  }
+
+  const handleExportReview = () => {
+    try {
+      if (!reviewData) {
+        setReviewExportMessage(t('export.nothingToExport'))
+        return
+      }
+
+      const latestReviewAction = (reviewTimelineData?.items || []).find((item) => item?.event_type === 'review_action_recorded')
+      const latestReviewNote = (reviewTimelineData?.items || []).find((item) => item?.event_type === 'review_note_added')
+
+      const lines = [
+        `# ${t('export.exportReview')}`,
+        '',
+        `- ${t('export.generatedAt')}: ${formatGeneratedAt()}`,
+        '',
+        '## Object',
+        `- Source Type: ${asText(reviewDetailItem?.sourceType)}`,
+        `- Source Ref ID: ${asText(reviewDetailItem?.sourceRefId)}`,
+        `- Source Label: ${asText(reviewData?.sourceInfo?.sourceLabel)}`,
+        '',
+        '## Current Status / Decision',
+        `- Source Status: ${asText(reviewData?.sourceInfo?.status)}`,
+        `- Completeness: ${asText(reviewData?.dataCoverage?.completenessNote)}`,
+        '',
+        '## Summary Metrics',
+        `- Total Trades: ${asText(reviewData?.metricsSummary?.totalTrades)}`,
+        `- Win Rate: ${toNumberText(reviewData?.metricsSummary?.winRate, 1)}`,
+        `- PnL: ${toNumberText(reviewData?.metricsSummary?.pnl, 2)}`,
+        `- Max Drawdown: ${toNumberText(reviewData?.metricsSummary?.maxDrawdown, 2)}`,
+        `- Profit Factor: ${toNumberText(reviewData?.metricsSummary?.profitFactor, 3)}`,
+        '',
+        '## Latest Action / Note',
+        `- Latest Action: ${asText(latestReviewAction?.description)}`,
+        `- Latest Note: ${asText(latestReviewNote?.description)}`,
+        '',
+        '## Timeline (Recent)',
+        ...timelineLines(reviewTimelineData?.items || [], 10),
+      ]
+
+      downloadMarkdown(
+        `account-audit-review-${asText(reviewDetailItem?.sourceType, 'source')}-${asText(reviewDetailItem?.sourceRefId, 'id')}`,
+        `${lines.join('\n')}\n`,
+      )
+      setReviewExportMessage(t('export.exportReady'))
+    } catch {
+      setReviewExportMessage(t('export.exportFailed'))
+    }
+  }
+
+  const handleExportSummary = () => {
+    try {
+      if (!summaryDetailItem) {
+        setSummaryExportMessage(t('export.nothingToExport'))
+        return
+      }
+
+      const lines = [
+        `# ${t('export.exportSummary')}`,
+        '',
+        `- ${t('export.generatedAt')}: ${formatGeneratedAt()}`,
+        '',
+        '## Object',
+        `- Source Type: ${asText(summaryDetailItem.sourceType)}`,
+        `- Source Ref ID: ${asText(summaryDetailItem.sourceRefId)}`,
+        `- Account Label: ${asText(summaryDetailItem.accountLabel)}`,
+        '',
+        '## Summary Metrics',
+        `- Total Trades: ${asText(summaryDetailItem.totalTrades)}`,
+        `- Win Rate: ${toNumberText(summaryDetailItem.winRate, 1)}`,
+        `- PnL: ${toNumberText(summaryDetailItem.pnl, 2)}`,
+        `- Max Drawdown: ${toNumberText(summaryDetailItem.maxDrawdown, 2)}`,
+        `- Profit Factor: ${toNumberText(summaryDetailItem.profitFactor, 3)}`,
+      ]
+
+      downloadMarkdown(`account-audit-summary-${asText(summaryDetailItem.id, 'id')}`, `${lines.join('\n')}\n`)
+      setSummaryExportMessage(t('export.exportReady'))
+    } catch {
+      setSummaryExportMessage(t('export.exportFailed'))
+    }
   }
 
   return (
@@ -856,15 +953,25 @@ function AccountAuditPage() {
                 <p className="text-sm font-semibold text-slate-100">{t('accountAudit.summaryTitle')}</p>
                 <p className="mt-1 text-xs text-slate-500">{summaryDetailItem.accountLabel}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setSummaryDetailItem(null)}
-                className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 transition hover:bg-slate-700"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportSummary}
+                  className="rounded-md border border-emerald-700/60 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200 transition hover:bg-emerald-900/30"
+                >
+                  {t('export.exportSummary')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSummaryDetailItem(null)}
+                  className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 transition hover:bg-slate-700"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
             <div className="px-5 py-4">
+              {summaryExportMessage ? <p className="mb-3 text-xs text-emerald-300">{summaryExportMessage}</p> : null}
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 <AuditIntakeMetric label={t('accountAudit.summarySourceType')} value={summaryDetailItem.sourceType} />
                 <AuditIntakeMetric label={t('accountAudit.summaryTotalTrades')} value={summaryDetailItem.totalTrades ?? '--'} />
@@ -1004,17 +1111,27 @@ function AccountAuditPage() {
                   {reviewDetailItem?.sourceType} #{reviewDetailItem?.sourceRefId}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setReviewDetailItem(null)}
-                className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 transition hover:bg-slate-700"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportReview}
+                  className="rounded-md border border-emerald-700/60 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200 transition hover:bg-emerald-900/30"
+                >
+                  {t('export.exportReview')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReviewDetailItem(null)}
+                  className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 transition hover:bg-slate-700"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
             <div className="px-5 py-4">
+              {reviewExportMessage ? <p className="mb-3 text-xs text-emerald-300">{reviewExportMessage}</p> : null}
               {reviewLoading ? (
-                <p className="text-sm text-slate-400">{t('common.noData')}</p>
+                <p className="text-sm text-slate-400">{t('common.loading')}</p>
               ) : reviewError ? (
                 <p className="text-sm text-rose-300">{t('accountAudit.reviewLoadingError')}</p>
               ) : !reviewData ? (
@@ -1183,6 +1300,16 @@ function AccountAuditPage() {
                       </div>
                     </div>
                   )}
+
+                  <div className="mt-4">
+                    <ActivityTimeline
+                      title={t('timeline.activityTimeline')}
+                      items={reviewTimelineData?.items || []}
+                      isLoading={reviewTimelineLoading}
+                      t={t}
+                      language={language}
+                    />
+                  </div>
                 </>
               )}
             </div>

@@ -3,12 +3,9 @@ import os
 import hashlib
 from datetime import datetime, timedelta, timezone
 from functools import wraps
+from typing import Any
 
 from flask import request, jsonify
-
-# Get admin password from environment; default to 'admin' for dev
-ADMIN_PASSWORD = os.environ.get('TRADEAUDIT_ADMIN_PASSWORD', 'admin')
-
 # Simple in-memory session storage (dev/test; production should use Redis/DB)
 _SESSIONS = {}
 
@@ -18,20 +15,41 @@ def _hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 
+def _resolve_admin_password() -> str:
+    configured = os.environ.get('TRADEAUDIT_ADMIN_PASSWORD')
+    if configured is None:
+        return 'admin'
+    return str(configured).strip()
+
+
+def _resolve_session_ttl_hours() -> int:
+    raw = (os.environ.get('TRADEAUDIT_SESSION_TTL_HOURS') or '').strip()
+    if not raw:
+        return 12
+    try:
+        ttl = int(raw)
+        return min(max(ttl, 1), 72)
+    except ValueError:
+        return 12
+
+
 def create_session(password: str) -> dict | None:
     """
     Verify password and create session token.
     Returns session dict with token if successful, None otherwise.
     """
-    if password != ADMIN_PASSWORD:
+    configured_password = (password or "").strip()
+    admin_password = _resolve_admin_password()
+
+    if configured_password != (admin_password or ""):
         return None
     
     # Generate simple token
     import secrets
     token = secrets.token_urlsafe(32)
     
-    # Store session with expiration (12 hours)
-    expiration = datetime.now(timezone.utc) + timedelta(hours=12)
+    # Store session with configurable expiration (default 12 hours)
+    expiration = datetime.now(timezone.utc) + timedelta(hours=_resolve_session_ttl_hours())
     _SESSIONS[token] = {
         'created_at': datetime.now(timezone.utc).isoformat(),
         'expires_at': expiration.isoformat(),
@@ -39,7 +57,57 @@ def create_session(password: str) -> dict | None:
     
     return {
         'token': token,
+        'issuedAt': _SESSIONS[token]['created_at'],
         'expiresAt': expiration.isoformat(),
+    }
+
+
+def _extract_token() -> str | None:
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:].strip()
+        return token or None
+    alt_token = request.headers.get('X-Access-Token', '').strip()
+    return alt_token or None
+
+
+def get_access_status() -> dict[str, Any]:
+    """Centralized request access status for consistent auth handling."""
+    token = _extract_token()
+    if not token:
+        return {
+            'ok': False,
+            'code': 'UNAUTHORIZED',
+            'reason': 'missing_token',
+            'message': 'Protected access required',
+        }
+
+    session = _SESSIONS.get(token)
+    if not session:
+        return {
+            'ok': False,
+            'code': 'INVALID_SESSION',
+            'reason': 'invalid_token',
+            'message': 'Invalid session',
+        }
+
+    expires_at = datetime.fromisoformat(session['expires_at'])
+    if datetime.now(timezone.utc) > expires_at:
+        _SESSIONS.pop(token, None)
+        return {
+            'ok': False,
+            'code': 'SESSION_EXPIRED',
+            'reason': 'expired',
+            'message': 'Session expired',
+        }
+
+    return {
+        'ok': True,
+        'code': 'OK',
+        'reason': 'valid',
+        'message': 'Authorized',
+        'expiresAt': session['expires_at'],
+        'createdAt': session['created_at'],
     }
 
 
@@ -48,31 +116,7 @@ def verify_access() -> bool:
     Check if request has valid access token.
     Looks in: Authorization header (Bearer token) or X-Access-Token header.
     """
-    # Get token from Authorization header or X-Access-Token header
-    auth_header = request.headers.get('Authorization', '')
-    token = None
-    
-    if auth_header.startswith('Bearer '):
-        token = auth_header[7:]
-    else:
-        token = request.headers.get('X-Access-Token')
-    
-    if not token:
-        return False
-    
-    # Check if token exists and not expired
-    if token not in _SESSIONS:
-        return False
-    
-    session = _SESSIONS[token]
-    expires_at = datetime.fromisoformat(session['expires_at'])
-    
-    if datetime.now(timezone.utc) > expires_at:
-        # Token expired
-        del _SESSIONS[token]
-        return False
-    
-    return True
+    return bool(get_access_status()['ok'])
 
 
 def require_access(f):
@@ -82,10 +126,13 @@ def require_access(f):
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not verify_access():
+        status = get_access_status()
+        if not status['ok']:
             return jsonify({
-                'error': 'UNAUTHORIZED',
-                'message': 'Access denied. Please provide valid access token.',
+                'error': {
+                    'code': status['code'],
+                    'message': status['message'],
+                }
             }), 401
         return f(*args, **kwargs)
     return decorated_function

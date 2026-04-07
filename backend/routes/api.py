@@ -7,7 +7,8 @@ from data_sources.change_items_repository import get_change_items, get_change_it
 from data_sources.evaluation_snapshots_repository import get_evaluation_history
 from data_sources.import_jobs_repository import get_recent_import_jobs, insert_import_job
 from routes.response_utils import error_response
-from services.access_control_service import require_access, create_session
+from services.access_control_service import require_access, create_session, get_access_status
+from services.config_safety_service import get_safe_config_status
 from services.account_audit_intake_service import (
     create_account_audit_manual_intake,
     create_account_audit_upload_intake,
@@ -48,6 +49,26 @@ from services.forward_run_gate_results_service import (
     list_gate_results_page,
     save_forward_run_gate_result,
 )
+from services.audit_cases_service import (
+    create_audit_case,
+    list_audit_cases,
+    get_case_detail,
+    update_case,
+    get_queue_for_review,
+    case_summary,
+)
+from services.review_service import (
+    add_note_to_case,
+    list_case_notes,
+    take_review_action,
+    get_case_review_history,
+    get_case_decision,
+)
+from services.timeline_service import (
+    get_case_timeline,
+    get_strategy_timeline,
+    get_account_audit_timeline,
+)
 from services.strategy_lifecycle_service import get_strategy_lifecycle
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -69,17 +90,31 @@ def auth_login_route():
     session = create_session(password)
     if session is None:
         return error_response("UNAUTHORIZED", "Invalid password", 401)
-    
-    return jsonify(session), 200
+
+    return jsonify({
+        "ok": True,
+        "token": session["token"],
+        "issuedAt": session["issuedAt"],
+        "expiresAt": session["expiresAt"],
+    }), 200
 
 
 @api_bp.post("/auth/verify")
 def auth_verify_route():
     """Verify if current token is valid."""
-    from services.access_control_service import verify_access
-    if verify_access():
-        return jsonify({"valid": True}), 200
-    return jsonify({"valid": False}), 401
+    status = get_access_status()
+    if status["ok"]:
+        return jsonify({
+            "valid": True,
+            "expiresAt": status.get("expiresAt"),
+        }), 200
+    return error_response(status["code"], status["message"], 401)
+
+
+@api_bp.get("/config/status")
+def config_status_route():
+    """Expose safe configuration status for login/access page warnings."""
+    return jsonify(get_safe_config_status()), 200
 
 
 # ============================================================================
@@ -665,6 +700,222 @@ def backtests_active_dataset():
         return jsonify(get_active_dataset_info())
     except Exception:
         return error_response("INTERNAL_ERROR", "Failed to load active dataset info", 500)
+
+
+# Audit Cases Routes (Stage 33)
+@api_bp.get("/audit-cases")
+@require_access
+def get_audit_cases_route():
+    try:
+        limit = min(int(request.args.get("limit", 50)), 200)
+        status_filter = request.args.get("status")
+        priority_filter = request.args.get("priority")
+        
+        result = list_audit_cases(limit, status_filter, priority_filter)
+        return jsonify(result)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load audit cases", 500)
+
+
+@api_bp.post("/audit-cases")
+@require_access
+def create_audit_case_route():
+    try:
+        data = request.get_json() or {}
+        case_type = data.get("case_type")
+        ref_id = data.get("ref_id")
+        
+        if not case_type or not ref_id:
+            return error_response("BAD_REQUEST", "case_type and ref_id are required", 400)
+        
+        priority = data.get("priority", "normal")
+        status = data.get("status", "open")
+        note = data.get("note")
+        
+        result = create_audit_case(case_type, ref_id, priority, status, note)
+        return jsonify(result), 201
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to create audit case", 500)
+
+
+@api_bp.get("/audit-cases/<int:case_id>")
+@require_access
+def get_audit_case_route(case_id: int):
+    try:
+        result = get_case_detail(case_id)
+        return jsonify(result)
+    except ValueError as exc:
+        return error_response("NOT_FOUND", str(exc), 404)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load audit case", 500)
+
+
+@api_bp.patch("/audit-cases/<int:case_id>")
+@require_access
+def update_audit_case_route(case_id: int):
+    try:
+        data = request.get_json() or {}
+        priority = data.get("priority")
+        status = data.get("status")
+        note = data.get("note")
+        
+        result = update_case(case_id, priority, status, note)
+        return jsonify(result)
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to update audit case", 500)
+
+
+@api_bp.get("/review-queue")
+@require_access
+def review_queue_route():
+    try:
+        limit = min(int(request.args.get("limit", 50)), 200)
+        result = get_queue_for_review(limit)
+        return jsonify(result)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load review queue", 500)
+
+
+@api_bp.get("/audit-cases/stats/summary")
+@require_access
+def audit_cases_summary_route():
+    try:
+        result = case_summary()
+        return jsonify(result)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load case summary", 500)
+
+
+# Review Notes & Actions Routes (Stage 34)
+@api_bp.post("/audit-cases/<int:case_id>/notes")
+@require_access
+def add_case_note_route(case_id: int):
+    try:
+        data = request.get_json() or {}
+        content = data.get("content")
+        note_type = data.get("note_type", "comment")
+        
+        if not content:
+            return error_response("BAD_REQUEST", "content is required", 400)
+        
+        result = add_note_to_case(case_id, content, note_type)
+        return jsonify(result), 201
+    except ValueError as exc:
+        return error_response("NOT_FOUND" if "not found" in str(exc) else "BAD_REQUEST", str(exc), 404 if "not found" in str(exc) else 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to add note", 500)
+
+
+@api_bp.get("/audit-cases/<int:case_id>/notes")
+@require_access
+def list_case_notes_route(case_id: int):
+    try:
+        limit = min(int(request.args.get("limit", 100)), 500)
+        result = list_case_notes(case_id, limit)
+        return jsonify(result)
+    except ValueError as exc:
+        return error_response("NOT_FOUND", str(exc), 404)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load notes", 500)
+
+
+@api_bp.post("/audit-cases/<int:case_id>/actions")
+@require_access
+def take_case_action_route(case_id: int):
+    try:
+        data = request.get_json() or {}
+        action = data.get("action")
+        reason = data.get("reason")
+        
+        if not action:
+            return error_response("BAD_REQUEST", "action is required", 400)
+        
+        result = take_review_action(case_id, action, reason)
+        return jsonify(result), 201
+    except ValueError as exc:
+        error_type = "NOT_FOUND" if "not found" in str(exc) else "BAD_REQUEST"
+        status_code = 404 if error_type == "NOT_FOUND" else 400
+        return error_response(error_type, str(exc), status_code)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to record action", 500)
+
+
+@api_bp.get("/audit-cases/<int:case_id>/actions")
+@require_access
+def list_case_actions_route(case_id: int):
+    try:
+        result = get_case_review_history(case_id)
+        return jsonify(result)
+    except ValueError as exc:
+        return error_response("NOT_FOUND", str(exc), 404)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load actions", 500)
+
+
+@api_bp.get("/audit-cases/<int:case_id>/decision")
+@require_access
+def get_case_decision_route(case_id: int):
+    try:
+        result = get_case_decision(case_id)
+        return jsonify(result)
+    except ValueError as exc:
+        return error_response("NOT_FOUND", str(exc), 404)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load decision", 500)
+
+
+# Unified Activity Timeline Routes (Stage 35)
+@api_bp.get("/audit-cases/<int:case_id>/timeline")
+@require_access
+def audit_case_timeline_route(case_id: int):
+    try:
+        limit = min(int(request.args.get("limit", 100)), 300)
+        result = get_case_timeline(case_id, max(limit, 1))
+        return jsonify(result)
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        error_type = "NOT_FOUND" if status_code == 404 else "BAD_REQUEST"
+        return error_response(error_type, str(exc), status_code)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load case timeline", 500)
+
+
+@api_bp.get("/backtests/<string:strategy_id>/timeline")
+def strategy_timeline_route(strategy_id: str):
+    try:
+        limit = min(int(request.args.get("limit", 100)), 300)
+        result = get_strategy_timeline(strategy_id, max(limit, 1))
+        return jsonify(result)
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load strategy timeline", 500)
+
+
+@api_bp.get("/account-audit/timeline")
+@require_access
+def account_audit_timeline_route():
+    source_type = (request.args.get("sourceType") or "").strip()
+    source_ref_id_raw = (request.args.get("sourceRefId") or "").strip()
+
+    if not source_type:
+        return error_response("BAD_REQUEST", "sourceType is required", 400)
+    if not source_ref_id_raw:
+        return error_response("BAD_REQUEST", "sourceRefId is required", 400)
+
+    try:
+        source_ref_id = int(source_ref_id_raw)
+        limit = min(int(request.args.get("limit", 100)), 300)
+        result = get_account_audit_timeline(source_type, source_ref_id, max(limit, 1))
+        return jsonify(result)
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load account audit timeline", 500)
 
 
 @api_bp.get("/import-jobs/compare")

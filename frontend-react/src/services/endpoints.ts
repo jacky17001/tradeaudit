@@ -3,6 +3,7 @@ export const endpoints = {
   auth: {
     login: '/api/auth/login',
     verify: '/api/auth/verify',
+    configStatus: '/api/config/status',
   },
   dashboard: {
     summary: '/api/dashboard/summary',
@@ -21,11 +22,13 @@ export const endpoints = {
     summaries: '/api/account-audit/summaries',
     summary: (summaryId: number) => `/api/account-audit/summaries/${summaryId}`,
     review: '/api/account-audit/review',
+    timeline: '/api/account-audit/timeline',
   },
   backtests: {
     list: '/api/backtests/list',
     candidate: (strategyId: string) => `/api/backtests/${strategyId}/candidate`,
     lifecycle: (strategyId: string) => `/api/backtests/${strategyId}/lifecycle`,
+    timeline: (strategyId: string) => `/api/backtests/${strategyId}/timeline`,
     import: '/api/backtests/import',
     importUpload: '/api/backtests/import-upload',
   },
@@ -48,6 +51,18 @@ export const endpoints = {
     changes: (jobId: number) => `/api/import-jobs/${jobId}/changes`,
     activate: (jobId: number) => `/api/import-jobs/${jobId}/activate`,
     compare: '/api/import-jobs/compare',
+  },
+  auditCases: {
+    list: '/api/audit-cases',
+    create: '/api/audit-cases',
+    detail: (caseId: number) => `/api/audit-cases/${caseId}`,
+    update: (caseId: number) => `/api/audit-cases/${caseId}`,
+    reviewQueue: '/api/review-queue',
+    summary: '/api/audit-cases/stats/summary',
+    notes: (caseId: number) => `/api/audit-cases/${caseId}/notes`,
+    actions: (caseId: number) => `/api/audit-cases/${caseId}/actions`,
+    decision: (caseId: number) => `/api/audit-cases/${caseId}/decision`,
+    timeline: (caseId: number) => `/api/audit-cases/${caseId}/timeline`,
   },
   backtestsActiveDataset: '/api/backtests/active-dataset',
 } as const

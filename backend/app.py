@@ -5,11 +5,16 @@ from pathlib import Path
 
 from db.init_db import ensure_database_ready
 from routes.api import api_bp
+from services.config_safety_service import validate_runtime_config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 
 app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="")
+
+config_status = validate_runtime_config()
+for warning in config_status.get("warningMessages", []):
+    print(f"[CONFIG WARNING] {warning}")
 
 # Auto-seed only when DB is missing or core tables are empty.
 ensure_database_ready()

@@ -1,11 +1,31 @@
 import { useState, useEffect } from 'react'
 import { useLanguage } from '../i18n/LanguageContext'
 import LoginPage from '../pages/LoginPage'
+import { verifySession } from '../services/api/auth'
+
+function mapAuthErrorToMessage(error, t) {
+  const code = error?.details?.error?.code || ''
+  if (code === 'SESSION_EXPIRED') {
+    return t('login.sessionExpired')
+  }
+  if (code === 'INVALID_SESSION') {
+    return t('login.invalidSession')
+  }
+  if (code === 'UNAUTHORIZED') {
+    return `${t('login.accessDenied')}. ${t('login.pleaseReEnterPassword')}.`
+  }
+  return `${t('login.sessionExpired')} ${t('login.pleaseReEnterPassword')}`
+}
+
+function clearSessionStorage() {
+  localStorage.removeItem('_tradeaudit_token')
+  localStorage.removeItem('_tradeaudit_token_expires_at')
+}
 
 function ProtectedRoute({ children }) {
   const { t } = useLanguage()
   const [authToken, setAuthToken] = useState(() => localStorage.getItem('_tradeaudit_token'))
-  const [isAuthenticating, setIsAuthenticating] = useState(!!authToken)
+  const [isAuthenticating, setIsAuthenticating] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [authError, setAuthError] = useState('')
 
@@ -13,6 +33,7 @@ function ProtectedRoute({ children }) {
   useEffect(() => {
     if (!authToken) {
       setIsAuthenticating(false)
+      setIsAuthenticated(false)
       return
     }
 
@@ -20,8 +41,7 @@ function ProtectedRoute({ children }) {
     if (expiresAtRaw) {
       const expiresAt = new Date(expiresAtRaw)
       if (!Number.isNaN(expiresAt.getTime()) && new Date() > expiresAt) {
-        localStorage.removeItem('_tradeaudit_token')
-        localStorage.removeItem('_tradeaudit_token_expires_at')
+        clearSessionStorage()
         setAuthToken(null)
         setIsAuthenticated(false)
         setAuthError(t('login.sessionExpired'))
@@ -32,23 +52,13 @@ function ProtectedRoute({ children }) {
 
     const verify = async () => {
       try {
-        const response = await fetch('/api/auth/verify', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-          },
-        })
-        if (!response.ok) {
-          throw new Error('invalid session')
-        }
+        await verifySession(authToken)
         setIsAuthenticated(true)
-      } catch {
-        localStorage.removeItem('_tradeaudit_token')
-        localStorage.removeItem('_tradeaudit_token_expires_at')
+      } catch (error) {
+        clearSessionStorage()
         setAuthToken(null)
         setIsAuthenticated(false)
-        setAuthError(t('login.sessionExpired'))
+        setAuthError(mapAuthErrorToMessage(error, t))
       } finally {
         setIsAuthenticating(false)
       }
@@ -57,11 +67,18 @@ function ProtectedRoute({ children }) {
     verify()
   }, [authToken, t])
 
-  const handleAuthSuccess = (token) => {
+  const handleAuthSuccess = ({ token, expiresAt }) => {
+    if (!token) {
+      return
+    }
+    if (expiresAt) {
+      localStorage.setItem('_tradeaudit_token_expires_at', expiresAt)
+    }
+    localStorage.setItem('_tradeaudit_token', token)
     setAuthToken(token)
     setIsAuthenticated(true)
     setAuthError('')
-    localStorage.setItem('_tradeaudit_token', token)
+    setIsAuthenticating(false)
   }
 
   if (!authToken) {

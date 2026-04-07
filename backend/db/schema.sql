@@ -264,3 +264,46 @@ ON forward_run_gate_results (forward_run_id);
 
 CREATE INDEX IF NOT EXISTS idx_forward_run_gate_results_decision
 ON forward_run_gate_results (gate_decision, id DESC);
+
+CREATE TABLE IF NOT EXISTS audit_cases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_type TEXT NOT NULL,
+    ref_id INTEGER NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'normal',
+    status TEXT NOT NULL DEFAULT 'open',
+    note TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_cases_status_priority
+ON audit_cases (status, priority, id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_audit_cases_case_type
+ON audit_cases (case_type, ref_id);
+
+CREATE TABLE IF NOT EXISTS review_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    note_type TEXT NOT NULL DEFAULT 'comment',
+    created_at TEXT NOT NULL,
+    created_by TEXT DEFAULT 'system'
+);
+
+CREATE INDEX IF NOT EXISTS idx_review_notes_case_id
+ON review_notes (case_id, id DESC);
+
+CREATE TABLE IF NOT EXISTS review_actions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    reason TEXT,
+    previous_status TEXT,
+    new_status TEXT,
+    created_at TEXT NOT NULL,
+    created_by TEXT DEFAULT 'system'
+);
+
+CREATE INDEX IF NOT EXISTS idx_review_actions_case_id
+ON review_actions (case_id, id DESC);

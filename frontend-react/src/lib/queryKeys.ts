@@ -10,6 +10,8 @@ export const queryKeys = {
     summaries: (sourceType: string | null, limit: number) => ['audit', 'summaries', sourceType, limit] as const,
     summary: (summaryId: number) => ['audit', 'summary', summaryId] as const,
     review: (sourceType: string, sourceRefId: number) => ['audit', 'review', sourceType, sourceRefId] as const,
+    timeline: (sourceType: string, sourceRefId: number, limit: number) =>
+      ['audit', 'timeline', sourceType, sourceRefId, limit] as const,
   },
   backtests: {
     all: ['backtests'] as const,
@@ -17,6 +19,7 @@ export const queryKeys = {
       ['backtests', 'list', page, pageSize, candidateOnly] as const,
     activeDataset: ['backtests', 'active-dataset'] as const,
     lifecycle: (strategyId: string) => ['backtests', 'lifecycle', strategyId] as const,
+    timeline: (strategyId: string, limit: number) => ['backtests', 'timeline', strategyId, limit] as const,
   },
   forwardGate: {
     all: ['forward-gate'] as const,
@@ -39,5 +42,15 @@ export const queryKeys = {
     recent: (limit: number) => ['import-jobs', 'recent', limit] as const,
     changes: (jobId: number, changeType?: string) => ['import-jobs', 'changes', jobId, changeType ?? null] as const,
     compare: (leftJobId: number, rightJobId: number) => ['import-jobs', 'compare', leftJobId, rightJobId] as const,
+  },
+  auditCases: {
+    list: (status?: string, priority?: string) => ['audit-cases', 'list', status ?? null, priority ?? null] as const,
+    detail: (caseId: number) => ['audit-cases', 'detail', caseId] as const,
+    queue: () => ['audit-cases', 'queue'] as const,
+    summary: () => ['audit-cases', 'summary'] as const,
+    notes: (caseId: number) => ['audit-cases', 'notes', caseId] as const,
+    actions: (caseId: number) => ['audit-cases', 'actions', caseId] as const,
+    decision: (caseId: number) => ['audit-cases', 'decision', caseId] as const,
+    timeline: (caseId: number, limit: number) => ['audit-cases', 'timeline', caseId, limit] as const,
   },
 }
