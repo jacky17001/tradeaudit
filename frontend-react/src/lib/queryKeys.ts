@@ -4,6 +4,12 @@ export const queryKeys = {
   },
   audit: {
     all: ['audit'] as const,
+    intakeJobs: (limit: number) => ['audit', 'intake-jobs', limit] as const,
+    mt5Connections: (limit: number) => ['audit', 'mt5-connections', limit] as const,
+    mt5Connection: (connectionId: number) => ['audit', 'mt5-connection', connectionId] as const,
+    summaries: (sourceType: string | null, limit: number) => ['audit', 'summaries', sourceType, limit] as const,
+    summary: (summaryId: number) => ['audit', 'summary', summaryId] as const,
+    review: (sourceType: string, sourceRefId: number) => ['audit', 'review', sourceType, sourceRefId] as const,
   },
   backtests: {
     all: ['backtests'] as const,

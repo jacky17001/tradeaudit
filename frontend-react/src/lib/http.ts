@@ -26,8 +26,10 @@ function buildHeaders(config?: RequestConfig): Headers {
     headers.set('Content-Type', 'application/json')
   }
 
-  if (config?.token) {
-    headers.set('Authorization', `Bearer ${config.token}`)
+  // Auto-add token from localStorage if available
+  const token = config?.token || localStorage.getItem('_tradeaudit_token')
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`)
   }
 
   return headers

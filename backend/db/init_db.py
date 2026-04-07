@@ -229,6 +229,128 @@ def init_schema() -> None:
                 """
             )
 
+        account_audit_intake_tables = {
+            row['name']
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='account_audit_intake_jobs'"
+            ).fetchall()
+        }
+        if 'account_audit_intake_jobs' not in account_audit_intake_tables:
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS account_audit_intake_jobs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source_type TEXT NOT NULL,
+                    intake_method TEXT NOT NULL,
+                    source_label TEXT NOT NULL,
+                    original_filename TEXT,
+                    detected_rows INTEGER NOT NULL DEFAULT 0,
+                    note TEXT,
+                    status TEXT NOT NULL,
+                    error_message TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_account_audit_intake_jobs_created_at
+                ON account_audit_intake_jobs (id DESC);
+                """
+            )
+
+        account_audit_mt5_connection_tables = {
+            row['name']
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='account_audit_mt5_connections'"
+            ).fetchall()
+        }
+        if 'account_audit_mt5_connections' not in account_audit_mt5_connection_tables:
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS account_audit_mt5_connections (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    account_number TEXT NOT NULL,
+                    server TEXT NOT NULL,
+                    connection_label TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    last_tested_at TEXT,
+                    last_synced_at TEXT,
+                    error_message TEXT,
+                    account_name TEXT,
+                    currency TEXT,
+                    balance REAL,
+                    equity REAL,
+                    leverage INTEGER,
+                    synced_trade_count INTEGER NOT NULL DEFAULT 0,
+                    read_only INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_account_audit_mt5_connections_created_at
+                ON account_audit_mt5_connections (id DESC);
+                """
+            )
+
+        account_audit_mt5_trades_tables = {
+            row['name']
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='account_audit_mt5_trades'"
+            ).fetchall()
+        }
+        if 'account_audit_mt5_trades' not in account_audit_mt5_trades_tables:
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS account_audit_mt5_trades (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    connection_id INTEGER NOT NULL,
+                    ticket TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    order_type TEXT NOT NULL,
+                    volume REAL NOT NULL,
+                    open_time TEXT,
+                    close_time TEXT,
+                    profit REAL NOT NULL DEFAULT 0,
+                    commission REAL NOT NULL DEFAULT 0,
+                    swap REAL NOT NULL DEFAULT 0,
+                    comment TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_account_audit_mt5_trades_connection_id
+                ON account_audit_mt5_trades (connection_id, id DESC);
+                """
+            )
+
+        account_audit_summaries_tables = {
+            row['name']
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='account_audit_summaries'"
+            ).fetchall()
+        }
+        if 'account_audit_summaries' not in account_audit_summaries_tables:
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS account_audit_summaries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source_type TEXT NOT NULL,
+                    source_ref_id INTEGER NOT NULL,
+                    account_label TEXT NOT NULL,
+                    total_trades INTEGER,
+                    win_rate REAL,
+                    pnl REAL,
+                    max_drawdown REAL,
+                    profit_factor REAL,
+                    expectancy REAL,
+                    average_holding_time REAL,
+                    period_start TEXT,
+                    period_end TEXT,
+                    last_computed_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_account_audit_summaries_source
+                ON account_audit_summaries (source_type, source_ref_id);
+                CREATE INDEX IF NOT EXISTS idx_account_audit_summaries_created_at
+                ON account_audit_summaries (id DESC);
+                """
+            )
+
 
 def import_backtests() -> int:
     if not BACKTESTS_CSV_PATH.exists():

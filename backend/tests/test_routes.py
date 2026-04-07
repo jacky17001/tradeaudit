@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 import tempfile
+from io import BytesIO
 from unittest.mock import patch
 
 from app import app
@@ -10,6 +11,32 @@ from data_sources.import_jobs_repository import insert_import_job
 class RouteTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
+        # Login and get access token for protected routes
+        login_resp = self.client.post("/api/auth/login", json={"password": "admin"})
+        self.assertEqual(login_resp.status_code, 200)
+        self.access_token = login_resp.get_json()["token"]
+
+    def _get_auth_headers(self):
+        """Return headers with access token for authenticated requests."""
+        return {"Authorization": f"Bearer {self.access_token}"}
+    
+    def _post_auth(self, path, **kwargs):
+        """POST request with automatic auth header."""
+        headers = kwargs.pop('headers', {})
+        headers.update(self._get_auth_headers())
+        return self.client.post(path, headers=headers, **kwargs)
+    
+    def _patch_auth(self, path, **kwargs):
+        """PATCH request with automatic auth header."""
+        headers = kwargs.pop('headers', {})
+        headers.update(self._get_auth_headers())
+        return self.client.patch(path, headers=headers, **kwargs)
+    
+    def _put_auth(self, path, **kwargs):
+        """PUT request with automatic auth header."""
+        headers = kwargs.pop('headers', {})
+        headers.update(self._get_auth_headers())
+        return self.client.put(path, headers=headers, **kwargs)
 
     def test_backtests_route_returns_200_and_expected_fields(self):
         response = self.client.get("/api/backtests/list?page=1&pageSize=2")
@@ -64,7 +91,7 @@ class RouteTests(unittest.TestCase):
 
         self.client.delete(f"/api/backtests/{strategy_id}/candidate")
 
-        mark_resp = self.client.post(f"/api/backtests/{strategy_id}/candidate")
+        mark_resp = self._post_auth(f"/api/backtests/{strategy_id}/candidate")
         self.assertEqual(mark_resp.status_code, 200)
         mark_payload = mark_resp.get_json()
         self.assertEqual(mark_payload["strategyId"], strategy_id)
@@ -81,7 +108,156 @@ class RouteTests(unittest.TestCase):
         self.assertFalse(unmark_resp.get_json()["isCandidate"])
 
     def test_backtests_candidate_mark_rejects_unknown_strategy(self):
-        response = self.client.post("/api/backtests/not-found/candidate")
+        response = self._post_auth("/api/backtests/not-found/candidate")
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertEqual(payload["error"]["code"], "BAD_REQUEST")
+
+    def test_account_audit_manual_intake_create_and_list(self):
+        create_resp = self._post_auth(
+            "/api/account-audit/intake",
+            json={
+                "sourceType": "MANUAL",
+                "manualText": "ticket,open,close\n1,2026-01-01,2026-01-02\n2,2026-01-03,2026-01-04",
+                "note": "mobile copy paste",
+            },
+        )
+        self.assertEqual(create_resp.status_code, 200)
+        created = create_resp.get_json()
+        self.assertEqual(created["sourceType"], "MANUAL")
+        self.assertEqual(created["intakeMethod"], "MANUAL")
+        self.assertGreaterEqual(created["detectedRows"], 2)
+
+        list_resp = self.client.get("/api/account-audit/intake-jobs?limit=5")
+        self.assertEqual(list_resp.status_code, 200)
+        items = list_resp.get_json()["items"]
+        self.assertTrue(any(item["id"] == created["id"] for item in items))
+
+    def test_account_audit_upload_intake_accepts_statement_file(self):
+        response = self._post_auth(
+            "/api/account-audit/intake-upload",
+            data={
+                "sourceType": "STATEMENT",
+                "note": "statement export",
+                "file": (BytesIO(b"ticket,pnl\n1,12.5\n2,-5.0\n"), "statement.csv"),
+            },
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["sourceType"], "STATEMENT")
+        self.assertEqual(payload["intakeMethod"], "UPLOAD")
+        self.assertEqual(payload["originalFilename"], "statement.csv")
+        self.assertEqual(payload["status"], "SUCCESS")
+
+    def test_account_audit_mt5_test_connect_sync_and_detail_flow(self):
+        test_resp = self._post_auth(
+            "/api/account-audit/mt5/test-connection",
+            json={
+                "accountNumber": "880011",
+                "server": "Mock-Server",
+                "investorPassword": "investor-pass",
+            },
+        )
+        self.assertEqual(test_resp.status_code, 200)
+        tested = test_resp.get_json()
+        self.assertTrue(tested["ok"])
+        self.assertTrue(tested["readOnlyAccess"])
+        self.assertFalse(tested["tradingAllowed"])
+
+        connect_resp = self._post_auth(
+            "/api/account-audit/mt5/connect",
+            json={
+                "accountNumber": "880011",
+                "server": "Mock-Server",
+                "investorPassword": "investor-pass",
+                "connectionLabel": "Primary Investor",
+            },
+        )
+        self.assertEqual(connect_resp.status_code, 200)
+        connection = connect_resp.get_json()
+        self.assertEqual(connection["status"], "CONNECTED")
+        self.assertEqual(connection["connectionLabel"], "Primary Investor")
+
+        sync_resp = self._post_auth(
+            f"/api/account-audit/mt5/{connection['id']}/sync",
+            json={"investorPassword": "investor-pass"},
+        )
+        self.assertEqual(sync_resp.status_code, 200)
+        synced = sync_resp.get_json()
+        self.assertEqual(synced["status"], "SYNCED")
+        self.assertGreaterEqual(synced["syncedTradeCount"], 1)
+        self.assertTrue(len(synced["recentTrades"]) >= 1)
+
+        list_resp = self.client.get("/api/account-audit/mt5/connections?limit=10")
+        self.assertEqual(list_resp.status_code, 200)
+        items = list_resp.get_json()["items"]
+        self.assertTrue(any(item["id"] == connection["id"] for item in items))
+
+        detail_resp = self.client.get(f"/api/account-audit/mt5/{connection['id']}")
+        self.assertEqual(detail_resp.status_code, 200)
+        detail = detail_resp.get_json()
+        self.assertEqual(detail["id"], connection["id"])
+        self.assertGreaterEqual(len(detail["recentTrades"]), 1)
+
+    def test_account_audit_mt5_test_connection_returns_bad_request_on_failure(self):
+        response = self._post_auth(
+            "/api/account-audit/mt5/test-connection",
+            json={
+                "accountNumber": "880011",
+                "server": "Mock-Server",
+                "investorPassword": "fail-me",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertEqual(payload["error"]["code"], "BAD_REQUEST")
+
+    def test_account_audit_summary_recompute_list_and_detail_flow(self):
+        connect_resp = self._post_auth(
+            "/api/account-audit/mt5/connect",
+            json={
+                "accountNumber": "990101",
+                "server": "Mock-Server",
+                "investorPassword": "investor-pass",
+                "connectionLabel": "Stage30 Investor",
+            },
+        )
+        self.assertEqual(connect_resp.status_code, 200)
+        connection = connect_resp.get_json()
+
+        sync_resp = self._post_auth(
+            f"/api/account-audit/mt5/{connection['id']}/sync",
+            json={"investorPassword": "investor-pass"},
+        )
+        self.assertEqual(sync_resp.status_code, 200)
+
+        recompute_resp = self._post_auth(
+            "/api/account-audit/summaries/recompute",
+            json={"sourceType": "mt5_investor", "sourceRefId": connection["id"]},
+        )
+        self.assertEqual(recompute_resp.status_code, 200)
+        summary = recompute_resp.get_json()
+        self.assertEqual(summary["sourceType"], "mt5_investor")
+        self.assertEqual(summary["sourceRefId"], connection["id"])
+        self.assertIsNotNone(summary["totalTrades"])
+
+        list_resp = self.client.get("/api/account-audit/summaries?sourceType=mt5_investor&limit=10")
+        self.assertEqual(list_resp.status_code, 200)
+        items = list_resp.get_json()["items"]
+        self.assertTrue(any(item["id"] == summary["id"] for item in items))
+
+        detail_resp = self.client.get(f"/api/account-audit/summaries/{summary['id']}")
+        self.assertEqual(detail_resp.status_code, 200)
+        detail = detail_resp.get_json()
+        self.assertEqual(detail["id"], summary["id"])
+        self.assertEqual(detail["sourceType"], "mt5_investor")
+
+    def test_account_audit_summary_recompute_rejects_invalid_source_type(self):
+        response = self._post_auth(
+            "/api/account-audit/summaries/recompute",
+            json={"sourceType": "unknown", "sourceRefId": 1},
+        )
         self.assertEqual(response.status_code, 400)
         payload = response.get_json()
         self.assertEqual(payload["error"]["code"], "BAD_REQUEST")
@@ -92,10 +268,10 @@ class RouteTests(unittest.TestCase):
         strategy_id = list_resp.get_json()["items"][0]["id"]
 
         self.client.delete(f"/api/backtests/{strategy_id}/candidate")
-        mark_resp = self.client.post(f"/api/backtests/{strategy_id}/candidate")
+        mark_resp = self._post_auth(f"/api/backtests/{strategy_id}/candidate")
         self.assertEqual(mark_resp.status_code, 200)
 
-        create_resp = self.client.post(
+        create_resp = self._post_auth(
             "/api/forward-runs",
             json={
                 "strategyId": strategy_id,
@@ -115,7 +291,7 @@ class RouteTests(unittest.TestCase):
         list_payload = list_resp.get_json()
         self.assertTrue(any(item["id"] == created["id"] for item in list_payload["items"]))
 
-        patch_resp = self.client.patch(
+        patch_resp = self._patch_auth(
             f"/api/forward-runs/{created['id']}/status",
             json={"status": "PAUSED"},
         )
@@ -129,7 +305,7 @@ class RouteTests(unittest.TestCase):
         strategy_id = list_resp.get_json()["items"][0]["id"]
 
         self.client.delete(f"/api/backtests/{strategy_id}/candidate")
-        create_resp = self.client.post(
+        create_resp = self._post_auth(
             "/api/forward-runs",
             json={
                 "strategyId": strategy_id,
@@ -147,9 +323,9 @@ class RouteTests(unittest.TestCase):
         strategy_id = list_resp.get_json()["items"][0]["id"]
 
         self.client.delete(f"/api/backtests/{strategy_id}/candidate")
-        self.client.post(f"/api/backtests/{strategy_id}/candidate")
+        self._post_auth(f"/api/backtests/{strategy_id}/candidate")
 
-        create_resp = self.client.post(
+        create_resp = self._post_auth(
             "/api/forward-runs",
             json={
                 "strategyId": strategy_id,
@@ -161,7 +337,7 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(create_resp.status_code, 200)
         run_id = create_resp.get_json()["id"]
 
-        save_resp = self.client.put(
+        save_resp = self._put_auth(
             f"/api/forward-runs/{run_id}/summary",
             json={
                 "totalTrades": 42,
@@ -197,9 +373,9 @@ class RouteTests(unittest.TestCase):
         strategy_id = list_resp.get_json()["items"][0]["id"]
 
         self.client.delete(f"/api/backtests/{strategy_id}/candidate")
-        self.client.post(f"/api/backtests/{strategy_id}/candidate")
+        self._post_auth(f"/api/backtests/{strategy_id}/candidate")
 
-        create_resp = self.client.post(
+        create_resp = self._post_auth(
             "/api/forward-runs",
             json={
                 "strategyId": strategy_id,
@@ -211,7 +387,7 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(create_resp.status_code, 200)
         run_id = create_resp.get_json()["id"]
 
-        save_resp = self.client.put(
+        save_resp = self._put_auth(
             f"/api/forward-runs/{run_id}/gate-result",
             json={
                 "gateDecision": "PROMISING",
@@ -263,9 +439,9 @@ class RouteTests(unittest.TestCase):
         )
 
         self.client.delete(f"/api/backtests/{strategy_id}/candidate")
-        self.client.post(f"/api/backtests/{strategy_id}/candidate")
+        self._post_auth(f"/api/backtests/{strategy_id}/candidate")
 
-        create_resp = self.client.post(
+        create_resp = self._post_auth(
             "/api/forward-runs",
             json={
                 "strategyId": strategy_id,
@@ -277,7 +453,7 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(create_resp.status_code, 200)
         run_id = create_resp.get_json()["id"]
 
-        self.client.put(
+        self._put_auth(
             f"/api/forward-runs/{run_id}/summary",
             json={
                 "totalTrades": 18,
@@ -289,7 +465,7 @@ class RouteTests(unittest.TestCase):
                 "periodEnd": "2026-04-30",
             },
         )
-        self.client.put(
+        self._put_auth(
             f"/api/forward-runs/{run_id}/gate-result",
             json={
                 "gateDecision": "PASS",
@@ -442,7 +618,7 @@ class RouteTests(unittest.TestCase):
             csv_path = Path(tmp_dir) / "import.csv"
             csv_path.write_text(csv_content, encoding="utf-8")
 
-            response = self.client.post(
+            response = self._post_auth(
                 "/api/backtests/import",
                 json={"filePath": str(csv_path), "mode": "replace"},
             )
@@ -471,7 +647,7 @@ class RouteTests(unittest.TestCase):
             self.assertIn("items", history_resp.get_json())
 
     def test_backtests_import_route_requires_file_path(self):
-        response = self.client.post("/api/backtests/import", json={})
+        response = self._post_auth("/api/backtests/import", json={})
         self.assertEqual(response.status_code, 400)
         payload = response.get_json()
         self.assertEqual(payload["error"]["code"], "BAD_REQUEST")
@@ -506,7 +682,7 @@ class RouteTests(unittest.TestCase):
             csv_path = Path(tmp_dir) / "import-invalid.csv"
             csv_path.write_text(csv_content, encoding="utf-8")
 
-            response = self.client.post(
+            response = self._post_auth(
                 "/api/backtests/import",
                 json={"filePath": str(csv_path), "mode": "replace"},
             )
@@ -524,7 +700,7 @@ class RouteTests(unittest.TestCase):
 
     def test_backtests_import_route_failure_writes_failed_import_job(self):
         # Trigger failed import with a missing file.
-        self.client.post(
+        self._post_auth(
             "/api/backtests/import",
             json={"filePath": "C:/not-exists/missing.csv", "mode": "replace"},
         )

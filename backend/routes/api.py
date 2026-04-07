@@ -7,6 +7,25 @@ from data_sources.change_items_repository import get_change_items, get_change_it
 from data_sources.evaluation_snapshots_repository import get_evaluation_history
 from data_sources.import_jobs_repository import get_recent_import_jobs, insert_import_job
 from routes.response_utils import error_response
+from services.access_control_service import require_access, create_session
+from services.account_audit_intake_service import (
+    create_account_audit_manual_intake,
+    create_account_audit_upload_intake,
+    list_account_audit_intake_jobs,
+)
+from services.account_audit_mt5_service import (
+    create_mt5_connection,
+    get_mt5_connection,
+    list_mt5_connections,
+    sync_mt5_investor_account,
+    test_mt5_investor_connection,
+)
+from services.account_audit_summaries_service import (
+    get_account_audit_summary_detail,
+    list_account_audit_summaries,
+    recompute_account_audit_summary,
+)
+from services.account_audit_review_service import get_account_audit_review
 from services.account_audit_service import get_account_audit_summary
 from services.backtests_import_service import import_backtests_csv
 from services.backtests_service import get_backtests_page, set_backtest_candidate
@@ -33,6 +52,39 @@ from services.strategy_lifecycle_service import get_strategy_lifecycle
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
+
+# ============================================================================
+# Authentication Endpoints
+# ============================================================================
+
+@api_bp.post("/auth/login")
+def auth_login_route():
+    """Login endpoint - validate password and return access token."""
+    payload = request.get_json(silent=True) or {}
+    password = (payload.get("password") or "").strip()
+    
+    if not password:
+        return error_response("BAD_REQUEST", "Password is required", 400)
+    
+    session = create_session(password)
+    if session is None:
+        return error_response("UNAUTHORIZED", "Invalid password", 401)
+    
+    return jsonify(session), 200
+
+
+@api_bp.post("/auth/verify")
+def auth_verify_route():
+    """Verify if current token is valid."""
+    from services.access_control_service import verify_access
+    if verify_access():
+        return jsonify({"valid": True}), 200
+    return jsonify({"valid": False}), 401
+
+
+# ============================================================================
+# Resource Endpoints
+# ============================================================================
 
 def _build_validation_summary(result: dict) -> str:
     invalid_count = int(result.get("invalidRowCount", 0) or 0)
@@ -100,6 +152,202 @@ def account_audit_summary():
         return error_response("INTERNAL_ERROR", "Failed to load account audit summary", 500)
 
 
+@api_bp.get("/account-audit/intake-jobs")
+def account_audit_intake_jobs_route():
+    raw_limit = request.args.get("limit")
+
+    try:
+        limit = int(raw_limit) if raw_limit is not None else 5
+    except ValueError:
+        return error_response("BAD_REQUEST", "Invalid limit parameter", 400)
+
+    safe_limit = min(max(limit, 1), 20)
+
+    try:
+        return jsonify({"items": list_account_audit_intake_jobs(safe_limit)})
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load account audit intake jobs", 500)
+
+
+@api_bp.post("/account-audit/intake")
+@require_access
+def account_audit_manual_intake_route():
+    payload = request.get_json(silent=True) or {}
+
+    try:
+        return jsonify(create_account_audit_manual_intake(payload))
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to create account audit intake", 500)
+
+
+@api_bp.post("/account-audit/intake-upload")
+@require_access
+def account_audit_upload_intake_route():
+    uploaded = request.files.get("file")
+    source_type = str(request.form.get("sourceType", "") or "")
+    note = str(request.form.get("note", "") or "")
+
+    if not uploaded or not uploaded.filename:
+        return error_response("BAD_REQUEST", "No file provided", 400)
+
+    tmp_path = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(suffix=".upload")
+        os.close(fd)
+        uploaded.save(tmp_path)
+        return jsonify(
+            create_account_audit_upload_intake(
+                source_type=source_type,
+                file_path=tmp_path,
+                original_filename=uploaded.filename[:200],
+                note=note,
+            )
+        )
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to upload account audit intake", 500)
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+
+@api_bp.post("/account-audit/mt5/test-connection")
+def account_audit_mt5_test_connection_route():
+    payload = request.get_json(silent=True) or {}
+
+    try:
+        return jsonify(test_mt5_investor_connection(payload))
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to test MT5 investor connection", 500)
+
+
+@api_bp.post("/account-audit/mt5/connect")
+@require_access
+def account_audit_mt5_connect_route():
+    payload = request.get_json(silent=True) or {}
+
+    try:
+        return jsonify(create_mt5_connection(payload))
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to save MT5 investor connection", 500)
+
+
+@api_bp.post("/account-audit/mt5/<int:connection_id>/sync")
+@require_access
+def account_audit_mt5_sync_route(connection_id: int):
+    payload = request.get_json(silent=True) or {}
+
+    try:
+        return jsonify(sync_mt5_investor_account(connection_id, payload))
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to sync MT5 investor connection", 500)
+
+
+@api_bp.get("/account-audit/mt5/connections")
+def account_audit_mt5_connections_route():
+    raw_limit = request.args.get("limit")
+
+    try:
+        limit = int(raw_limit) if raw_limit is not None else 10
+    except ValueError:
+        return error_response("BAD_REQUEST", "Invalid limit parameter", 400)
+
+    safe_limit = min(max(limit, 1), 50)
+
+    try:
+        return jsonify({"items": list_mt5_connections(safe_limit)})
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load MT5 investor connections", 500)
+
+
+@api_bp.get("/account-audit/mt5/<int:connection_id>")
+def account_audit_mt5_connection_route(connection_id: int):
+    try:
+        return jsonify(get_mt5_connection(connection_id))
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load MT5 investor connection details", 500)
+
+
+@api_bp.post("/account-audit/summaries/recompute")
+@require_access
+def account_audit_summaries_recompute_route():
+    payload = request.get_json(silent=True) or {}
+
+    try:
+        return jsonify(recompute_account_audit_summary(payload))
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to recompute account audit summary", 500)
+
+
+@api_bp.get("/account-audit/summaries")
+def account_audit_summaries_list_route():
+    raw_limit = request.args.get("limit")
+    source_type_filter = (request.args.get("sourceType") or "").strip() or None
+
+    try:
+        limit = int(raw_limit) if raw_limit is not None else 20
+    except ValueError:
+        return error_response("BAD_REQUEST", "Invalid limit parameter", 400)
+
+    safe_limit = min(max(limit, 1), 100)
+
+    try:
+        return jsonify({"items": list_account_audit_summaries(source_type_filter, safe_limit)})
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load account audit summaries", 500)
+
+
+@api_bp.get("/account-audit/summaries/<int:summary_id>")
+def account_audit_summary_detail_route(summary_id: int):
+    try:
+        return jsonify(get_account_audit_summary_detail(summary_id))
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load account audit summary detail", 500)
+
+
+@api_bp.get("/account-audit/review")
+@require_access
+def account_audit_review_route():
+    source_type = (request.args.get("sourceType") or "").strip()
+    source_ref_id_str = request.args.get("sourceRefId", "").strip()
+
+    if not source_type:
+        return error_response("BAD_REQUEST", "sourceType is required", 400)
+    
+    if not source_ref_id_str:
+        return error_response("BAD_REQUEST", "sourceRefId is required", 400)
+
+    try:
+        source_ref_id = int(source_ref_id_str)
+    except ValueError:
+        return error_response("BAD_REQUEST", "Invalid sourceRefId format", 400)
+
+    try:
+        return jsonify(get_account_audit_review(source_type, source_ref_id))
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load account audit review", 500)
+
+
 @api_bp.get("/backtests/list")
 def backtests_list():
     try:
@@ -118,6 +366,7 @@ def backtests_list():
 
 
 @api_bp.post("/backtests/<string:strategy_id>/candidate")
+@require_access
 def mark_backtest_candidate(strategy_id: str):
     try:
         return jsonify(set_backtest_candidate(strategy_id, True))
@@ -148,6 +397,7 @@ def backtests_strategy_lifecycle(strategy_id: str):
 
 
 @api_bp.post("/backtests/import")
+@require_access
 def backtests_import():
     payload = request.get_json(silent=True) or {}
 
@@ -241,6 +491,7 @@ def backtests_import():
 
 
 @api_bp.post("/backtests/import-upload")
+@require_access
 def backtests_import_upload():
     uploaded = request.files.get("file")
     if not uploaded or not uploaded.filename:
@@ -397,6 +648,7 @@ def import_job_changes(job_id: int):
 
 
 @api_bp.post("/import-jobs/<int:job_id>/activate")
+@require_access
 def activate_import_job_route(job_id: int):
     try:
         result = activate_import_job(job_id)
@@ -416,6 +668,7 @@ def backtests_active_dataset():
 
 
 @api_bp.get("/import-jobs/compare")
+@require_access
 def import_jobs_compare():
     raw_left_job_id = request.args.get("leftJobId")
     raw_right_job_id = request.args.get("rightJobId")
@@ -438,6 +691,7 @@ def import_jobs_compare():
 
 
 @api_bp.post("/forward-runs")
+@require_access
 def create_forward_run_route():
     payload = request.get_json(silent=True) or {}
     strategy_id = str(payload.get("strategyId", "") or "")
@@ -474,6 +728,7 @@ def list_forward_runs_route():
 
 
 @api_bp.patch("/forward-runs/<int:run_id>/status")
+@require_access
 def patch_forward_run_status_route(run_id: int):
     payload = request.get_json(silent=True) or {}
     status = str(payload.get("status", "") or "")
@@ -488,6 +743,7 @@ def patch_forward_run_status_route(run_id: int):
 
 @api_bp.put("/forward-runs/<int:run_id>/summary")
 @api_bp.post("/forward-runs/<int:run_id>/summary")
+@require_access
 def upsert_forward_run_summary_route(run_id: int):
     payload = request.get_json(silent=True) or {}
 
@@ -514,6 +770,7 @@ def get_forward_run_summary_route(run_id: int):
 
 @api_bp.put("/forward-runs/<int:run_id>/gate-result")
 @api_bp.post("/forward-runs/<int:run_id>/gate-result")
+@require_access
 def upsert_forward_run_gate_result_route(run_id: int):
     payload = request.get_json(silent=True) or {}
 
