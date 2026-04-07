@@ -11,14 +11,14 @@ def _to_int(value: Any, default: int = 0) -> int:
         return default
 
 
-def insert_import_job(log: dict[str, Any]) -> None:
+def insert_import_job(log: dict[str, Any]) -> int:
     triggered_at = str(
         log.get("triggeredAt")
         or datetime.now(timezone.utc).isoformat(timespec="seconds")
     )
 
     with connection_scope() as connection:
-        connection.execute(
+        cursor = connection.execute(
             """
             INSERT INTO import_jobs (
                 jobType, triggeredAt, sourcePath, mode,
@@ -42,6 +42,7 @@ def insert_import_job(log: dict[str, Any]) -> None:
                 str(log.get("errorMessage", "") or ""),
             ),
         )
+        return int(cursor.lastrowid or 0)
 
 
 def get_recent_import_jobs(limit: int = 5) -> list[dict[str, Any]]:
@@ -80,3 +81,39 @@ def get_recent_import_jobs(limit: int = 5) -> list[dict[str, Any]]:
         }
         for row in rows
     ]
+
+
+def get_import_job_by_id(job_id: int) -> dict[str, Any] | None:
+    with connection_scope() as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id, jobType, triggeredAt, sourcePath, mode,
+                importedCount, skippedCount, failedCount, invalidRowCount,
+                reEvaluatedCount, snapshotWrittenCount,
+                status, errorMessage
+            FROM import_jobs
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (job_id,),
+        ).fetchone()
+
+    if row is None:
+        return None
+
+    return {
+        "id": _to_int(row["id"]),
+        "jobType": row["jobType"],
+        "triggeredAt": row["triggeredAt"],
+        "sourcePath": row["sourcePath"],
+        "mode": row["mode"],
+        "importedCount": _to_int(row["importedCount"]),
+        "skippedCount": _to_int(row["skippedCount"]),
+        "failedCount": _to_int(row["failedCount"]),
+        "invalidRowCount": _to_int(row["invalidRowCount"]),
+        "reEvaluatedCount": _to_int(row["reEvaluatedCount"]),
+        "snapshotWrittenCount": _to_int(row["snapshotWrittenCount"]),
+        "status": row["status"],
+        "errorMessage": row["errorMessage"] or "",
+    }

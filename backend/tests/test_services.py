@@ -5,7 +5,7 @@ from data.mock_api.audit import AUDIT_SUMMARY
 from data.mock_api.backtests import BACKTESTS_ITEMS
 from data.mock_api.forward_gate import FORWARD_GATE_SUMMARY
 from services.account_audit_service import get_account_audit_summary
-from services.backtests_service import get_backtests_page
+from services.backtests_service import get_backtests_page, set_backtest_candidate
 from services.forward_gate_service import get_forward_gate_summary
 
 
@@ -86,6 +86,22 @@ class ServiceTests(unittest.TestCase):
         self.assertIn("scoreDelta", first)
         self.assertIn("previousDecision", first)
         self.assertIn("decisionChanged", first)
+
+    def test_set_backtest_candidate_marks_strategy(self):
+        with patch("services.backtests_service.is_strategy_in_backtests", return_value=True), patch(
+            "services.backtests_service.mark_candidate"
+        ) as mark_candidate_mock:
+            payload = set_backtest_candidate("bt-001", True)
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["strategyId"], "bt-001")
+        self.assertTrue(payload["isCandidate"])
+        mark_candidate_mock.assert_called_once_with("bt-001")
+
+    def test_set_backtest_candidate_rejects_unknown_strategy(self):
+        with patch("services.backtests_service.is_strategy_in_backtests", return_value=False):
+            with self.assertRaises(ValueError):
+                set_backtest_candidate("missing", True)
 
     def test_forward_gate_service_fallbacks_to_mock_when_repo_returns_none(self):
         with patch("services.forward_gate_service.load_forward_gate_summary", return_value=None):

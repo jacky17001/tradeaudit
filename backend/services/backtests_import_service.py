@@ -93,9 +93,18 @@ def import_backtests_rows(
     validation_errors: list[str] = []
 
     batch_tag = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    prepared_for_snapshot: list[tuple[str, dict[str, Any]]] = []
 
+    prepared_for_snapshot: list[tuple[str, str, dict[str, Any]]] = []  # (id, name, evaluated)
+    snapshot_rows_buffer: list[dict[str, Any]] = []
     with connection_scope() as connection:
+        before_rows = connection.execute(
+            "SELECT id, name, score, decision FROM backtests"
+        ).fetchall()
+        before_map: dict[str, dict[str, Any]] = {
+            str(r["id"]): {"name": str(r["name"]), "score": int(r["score"] or 0), "decision": str(r["decision"] or "")}
+            for r in before_rows
+        }
+
         connection.execute("DELETE FROM backtests")
 
         for index, raw in enumerate(rows, start=2):
@@ -141,16 +150,41 @@ def import_backtests_rows(
 
                 imported_count += 1
                 reevaluated_count += 1
-                prepared_for_snapshot.append((normalized["id"], evaluated))
+                prepared_for_snapshot.append((normalized["id"], normalized["name"], evaluated))
+                snapshot_rows_buffer.append({
+                    "strategy_id": normalized["id"],
+                    "strategy_name": normalized["name"],
+                    "symbol": normalized["symbol"],
+                    "timeframe": normalized["timeframe"],
+                    "return_pct": normalized["returnPct"],
+                    "win_rate": normalized["winRate"],
+                    "max_drawdown": normalized["maxDrawdown"],
+                    "profit_factor": normalized["profitFactor"],
+                    "trade_count": normalized["tradeCount"],
+                    "score": int(evaluated["finalScore"]),
+                    "decision": str(evaluated["decision"]),
+                })
             except Exception:
                 failed_count += 1
 
-    for entity_id, evaluated in prepared_for_snapshot:
+    for entity_id, _name, evaluated in prepared_for_snapshot:
         try:
             attach_previous_from_history("backtests", entity_id, evaluated)
             snapshot_written_count += 1
         except Exception:
             failed_count += 1
+
+    after_map: dict[str, dict[str, Any]] = {
+        entity_id: {
+            "name": name,
+            "score": int(evaluated.get("finalScore", 0)),
+            "decision": str(evaluated.get("decision", "")),
+        }
+        for entity_id, name, evaluated in prepared_for_snapshot
+    }
+
+    changes_summary = _compute_changes_summary(before_map, after_map)
+    change_items = _build_change_items(before_map, after_map)
 
     return {
         "mode": mode,
@@ -161,7 +195,132 @@ def import_backtests_rows(
         "validationErrors": validation_errors,
         "reEvaluatedCount": reevaluated_count,
         "snapshotWrittenCount": snapshot_written_count,
+        "changesSummary": changes_summary,
+        "changeItems": change_items,
+        "snapshotRows": snapshot_rows_buffer,
     }
+
+
+_DECISION_CHANGES_LIMIT = 3
+
+
+def _compute_changes_summary(
+    before_map: dict[str, dict[str, Any]],
+    after_map: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    before_ids = set(before_map.keys())
+    after_ids = set(after_map.keys())
+    common_ids = before_ids & after_ids
+
+    new_count = len(after_ids - before_ids)
+    removed_count = len(before_ids - after_ids)
+
+    changed_count = 0
+    decision_changed_count = 0
+    decision_changes: list[dict[str, Any]] = []
+    score_deltas: list[dict[str, Any]] = []
+
+    for id_ in sorted(common_ids):
+        b = before_map[id_]
+        a = after_map[id_]
+        score_changed = b["score"] != a["score"]
+        decision_changed = b["decision"] != a["decision"]
+
+        if score_changed or decision_changed:
+            changed_count += 1
+
+        if decision_changed:
+            decision_changed_count += 1
+            if len(decision_changes) < _DECISION_CHANGES_LIMIT:
+                decision_changes.append({
+                    "id": id_,
+                    "name": a["name"] or id_,
+                    "oldDecision": b["decision"],
+                    "newDecision": a["decision"],
+                })
+
+        if score_changed:
+            score_deltas.append({
+                "id": id_,
+                "name": a["name"] or id_,
+                "delta": a["score"] - b["score"],
+            })
+
+    score_deltas.sort(key=lambda x: x["delta"])
+    biggest_decrease = score_deltas[0] if score_deltas else None
+    biggest_increase = score_deltas[-1] if score_deltas else None
+
+    return {
+        "totalStrategiesBefore": len(before_ids),
+        "totalStrategiesAfter": len(after_ids),
+        "newStrategiesCount": new_count,
+        "removedStrategiesCount": removed_count,
+        "changedStrategiesCount": changed_count,
+        "decisionChangedCount": decision_changed_count,
+        "decisionChanges": decision_changes,
+        "biggestScoreIncrease": biggest_increase,
+        "biggestScoreDecrease": biggest_decrease,
+    }
+
+
+def _build_change_items(
+    before_map: dict[str, dict[str, Any]],
+    after_map: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Build per-strategy change items for persistence.
+
+    Rules:
+    - after has it, before does not  => NEW
+    - before has it, after does not  => REMOVED
+    - both have it, score or decision differs => UPDATED
+    - unchanged strategies are omitted
+    """
+    items: list[dict[str, Any]] = []
+    before_ids = set(before_map.keys())
+    after_ids = set(after_map.keys())
+
+    for id_ in sorted(after_ids - before_ids):
+        a = after_map[id_]
+        items.append({
+            "strategy_id": id_,
+            "strategy_name": a["name"] or id_,
+            "change_type": "NEW",
+            "before_score": None,
+            "after_score": int(a["score"]),
+            "score_delta": None,
+            "before_decision": None,
+            "after_decision": str(a["decision"]),
+        })
+
+    for id_ in sorted(before_ids - after_ids):
+        b = before_map[id_]
+        items.append({
+            "strategy_id": id_,
+            "strategy_name": b["name"] or id_,
+            "change_type": "REMOVED",
+            "before_score": int(b["score"]),
+            "after_score": None,
+            "score_delta": None,
+            "before_decision": str(b["decision"]),
+            "after_decision": None,
+        })
+
+    for id_ in sorted(before_ids & after_ids):
+        b = before_map[id_]
+        a = after_map[id_]
+        if b["score"] != a["score"] or b["decision"] != a["decision"]:
+            items.append({
+                "strategy_id": id_,
+                "strategy_name": a["name"] or id_,
+                "change_type": "UPDATED",
+                "before_score": int(b["score"]),
+                "after_score": int(a["score"]),
+                "score_delta": int(a["score"]) - int(b["score"]),
+                "before_decision": str(b["decision"]),
+                "after_decision": str(a["decision"]),
+            })
+
+    return items
 
 
 def import_backtests_csv(

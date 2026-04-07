@@ -1,8 +1,10 @@
 import type { EvaluationResult } from './evaluation'
+import type { ForwardRunGateResult, ForwardRunItem, ForwardRunSummary } from './forwardRuns'
 
 export type BacktestRow = {
   id: string
   name: string
+  isCandidate?: boolean
   symbol: string
   timeframe: string
   returnPct: number
@@ -51,4 +53,40 @@ export type BacktestsListResponse = {
   page: number
   pageSize: number
   total: number
+}
+
+export type StrategyLifecycleSourceJob = {
+  id: number
+  jobType: string
+  triggeredAt: string
+  sourcePath: string
+  mode: string
+  importedCount: number
+  skippedCount: number
+  failedCount: number
+  invalidRowCount: number
+  reEvaluatedCount: number
+  snapshotWrittenCount: number
+  status: string
+  errorMessage: string
+}
+
+export type StrategyLifecycleBacktest = BacktestRow & {
+  rawScore: number
+  rawDecision: string
+  isInActiveDataset: boolean
+}
+
+export type StrategyLifecycleResponse = {
+  strategyId: string
+  strategyName: string
+  backtest: StrategyLifecycleBacktest | null
+  candidate: {
+    isCandidate: boolean
+  }
+  sourceJobId: number | null
+  sourceJob: StrategyLifecycleSourceJob | null
+  latestForwardRun: ForwardRunItem | null
+  latestSummary: ForwardRunSummary | null
+  latestGateResult: ForwardRunGateResult | null
 }

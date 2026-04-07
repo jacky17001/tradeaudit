@@ -4,6 +4,7 @@ from contextlib import nullcontext
 from unittest.mock import patch
 
 from db.init_db import import_account_audit, import_backtests, import_forward_gate, init_schema
+from data_sources.backtest_candidates_repository import mark_candidate, unmark_candidate
 from data_sources.account_audit_repository import load_account_audit_summary
 from data_sources.backtests_repository import query_backtests_page, query_backtests_summary
 from data_sources.forward_gate_repository import load_forward_gate_summary
@@ -29,6 +30,19 @@ class RepositoryTests(unittest.TestCase):
         self.assertIn("averageScore", summary)
         self.assertIn("passRate", summary)
         self.assertGreaterEqual(summary["totalAudits"], 1)
+
+    def test_backtests_repository_supports_candidate_filter(self):
+        unmark_candidate("bt-001")
+        mark_candidate("bt-001")
+
+        all_rows = query_backtests_page(page=1, page_size=5)
+        candidate_rows = query_backtests_page(page=1, page_size=5, candidate_only=True)
+
+        self.assertTrue(any(item["id"] == "bt-001" and item["isCandidate"] for item in all_rows["items"]))
+        self.assertTrue(all(item["isCandidate"] for item in candidate_rows["items"]))
+        self.assertTrue(any(item["id"] == "bt-001" for item in candidate_rows["items"]))
+
+        unmark_candidate("bt-001")
 
     def test_account_audit_repository_reads_from_sqlite(self):
         summary = load_account_audit_summary()

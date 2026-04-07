@@ -41,6 +41,194 @@ def init_schema() -> None:
                 'ALTER TABLE import_jobs ADD COLUMN invalidRowCount INTEGER NOT NULL DEFAULT 0'
             )
 
+        # Migration: create backtest_change_items table if it doesn't exist yet.
+        change_items_tables = {
+            row['name']
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='backtest_change_items'"
+            ).fetchall()
+        }
+        if 'backtest_change_items' not in change_items_tables:
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS backtest_change_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    import_job_id INTEGER NOT NULL,
+                    strategy_id TEXT NOT NULL,
+                    strategy_name TEXT NOT NULL,
+                    change_type TEXT NOT NULL,
+                    before_score INTEGER,
+                    after_score INTEGER,
+                    score_delta INTEGER,
+                    before_decision TEXT,
+                    after_decision TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_change_items_job_id
+                ON backtest_change_items (import_job_id);
+                """
+            )
+
+        job_snapshots_tables = {
+            row['name']
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='backtest_job_snapshots'"
+            ).fetchall()
+        }
+        if 'backtest_job_snapshots' not in job_snapshots_tables:
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS backtest_job_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    import_job_id INTEGER NOT NULL,
+                    strategy_id TEXT NOT NULL,
+                    strategy_name TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    timeframe TEXT NOT NULL,
+                    return_pct REAL NOT NULL,
+                    win_rate REAL NOT NULL,
+                    max_drawdown REAL NOT NULL,
+                    profit_factor REAL NOT NULL,
+                    trade_count INTEGER NOT NULL DEFAULT 0,
+                    score INTEGER NOT NULL,
+                    decision TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_job_snapshots_job_id
+                ON backtest_job_snapshots (import_job_id);
+                """
+            )
+
+        activations_tables = {
+            row['name']
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='backtest_dataset_activations'"
+            ).fetchall()
+        }
+        if 'backtest_dataset_activations' not in activations_tables:
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS backtest_dataset_activations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source_import_job_id INTEGER NOT NULL,
+                    activated_at TEXT NOT NULL,
+                    activated_by TEXT,
+                    note TEXT,
+                    activation_diff_summary TEXT,
+                    strategies_count INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+        else:
+            activation_columns = {
+                row['name']
+                for row in connection.execute('PRAGMA table_info(backtest_dataset_activations)').fetchall()
+            }
+            if 'activation_diff_summary' not in activation_columns:
+                connection.execute(
+                    'ALTER TABLE backtest_dataset_activations ADD COLUMN activation_diff_summary TEXT'
+                )
+
+        candidate_tables = {
+            row['name']
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='backtest_candidates'"
+            ).fetchall()
+        }
+        if 'backtest_candidates' not in candidate_tables:
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS backtest_candidates (
+                    strategy_id TEXT PRIMARY KEY,
+                    marked_at TEXT NOT NULL
+                )
+                """
+            )
+
+        forward_runs_tables = {
+            row['name']
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='forward_runs'"
+            ).fetchall()
+        }
+        if 'forward_runs' not in forward_runs_tables:
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS forward_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    strategy_id TEXT NOT NULL,
+                    strategy_name TEXT NOT NULL,
+                    source_job_id INTEGER,
+                    symbol TEXT NOT NULL,
+                    timeframe TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    note TEXT,
+                    started_at TEXT NOT NULL,
+                    ended_at TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_forward_runs_status_created
+                ON forward_runs (status, id DESC);
+                """
+            )
+
+        forward_run_summaries_tables = {
+            row['name']
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='forward_run_summaries'"
+            ).fetchall()
+        }
+        if 'forward_run_summaries' not in forward_run_summaries_tables:
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS forward_run_summaries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    forward_run_id INTEGER NOT NULL UNIQUE,
+                    total_trades INTEGER NOT NULL DEFAULT 0,
+                    win_rate REAL NOT NULL DEFAULT 0,
+                    pnl REAL NOT NULL DEFAULT 0,
+                    max_drawdown REAL NOT NULL DEFAULT 0,
+                    expectancy REAL NOT NULL DEFAULT 0,
+                    period_start TEXT,
+                    period_end TEXT,
+                    last_updated_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_forward_run_summaries_run_id
+                ON forward_run_summaries (forward_run_id);
+                """
+            )
+
+        forward_run_gate_results_tables = {
+            row['name']
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='forward_run_gate_results'"
+            ).fetchall()
+        }
+        if 'forward_run_gate_results' not in forward_run_gate_results_tables:
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS forward_run_gate_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    forward_run_id INTEGER NOT NULL UNIQUE,
+                    gate_decision TEXT NOT NULL,
+                    confidence TEXT,
+                    hard_fail INTEGER NOT NULL DEFAULT 0,
+                    sample_adequacy TEXT,
+                    strongest_factor TEXT,
+                    weakest_factor TEXT,
+                    notes TEXT,
+                    evaluated_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_forward_run_gate_results_run_id
+                ON forward_run_gate_results (forward_run_id);
+                CREATE INDEX IF NOT EXISTS idx_forward_run_gate_results_decision
+                ON forward_run_gate_results (gate_decision, id DESC);
+                """
+            )
+
 
 def import_backtests() -> int:
     if not BACKTESTS_CSV_PATH.exists():

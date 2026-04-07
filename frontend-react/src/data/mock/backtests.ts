@@ -5,6 +5,7 @@ export const backtestsMock: BacktestsPayload = {
     {
       id: 'bt-m01',
       name: 'TrendFibPA_v7',
+      isCandidate: false,
       symbol: 'XAUUSD',
       timeframe: 'H1',
       returnPct: 9.88,
@@ -30,6 +31,7 @@ export const backtestsMock: BacktestsPayload = {
     {
       id: 'bt-m02',
       name: 'TrendFibPA_v8',
+      isCandidate: true,
       symbol: 'EURUSD',
       timeframe: 'H1',
       returnPct: 12.45,
@@ -55,6 +57,7 @@ export const backtestsMock: BacktestsPayload = {
     {
       id: 'bt-m03',
       name: 'MeanRevert_M5',
+      isCandidate: true,
       symbol: 'GBPUSD',
       timeframe: 'M15',
       returnPct: 15.3,
@@ -80,6 +83,7 @@ export const backtestsMock: BacktestsPayload = {
     {
       id: 'bt-m04',
       name: 'LondonBreakout_X',
+      isCandidate: false,
       symbol: 'USDJPY',
       timeframe: 'H4',
       returnPct: 7.5,
