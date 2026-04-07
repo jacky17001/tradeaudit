@@ -31,7 +31,7 @@ import { getEvaluationHistory } from '../services/api/evaluationHistory'
 import { createForwardRun } from '../services/api/forwardRuns'
 import { getStrategyTimeline } from '../services/api/timeline'
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 5
 const DEFAULT_IMPORT_PATH = 'backend/data_sources/backtests.csv'
 const SMOKE_IMPORT_PATH = 'backend/data_sources/stage13_smoke_mixed.csv'
 const IMPORT_JOBS_LIMIT = 5
@@ -389,6 +389,9 @@ function BacktestsPage() {
 
       {isLoading ? <LoadingState label={t('backtests.loading')} /> : null}
       {error ? <ErrorState message={t('backtests.error')} /> : null}
+      {!isLoading && !error ? (
+        <ActiveDatasetStrip dataset={activeDataset} justImported={!!importResult} language={language} t={t} />
+      ) : null}
       {!isLoading && !error && data && data.rows.length > 0 ? (
         <TableShell
           title={t('backtests.resultsTitle')}
@@ -545,9 +548,6 @@ function BacktestsPage() {
       ) : null}
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 shadow-lg shadow-slate-950/40 sm:p-5">
-        {/* Current active dataset strip */}
-        <ActiveDatasetStrip dataset={activeDataset} justImported={!!importResult} language={language} t={t} />
-
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-slate-100">{t('backtests.importTitle')}</p>

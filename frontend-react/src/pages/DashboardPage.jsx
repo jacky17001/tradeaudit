@@ -10,6 +10,43 @@ import { queryKeys } from '../lib/queryKeys'
 import { getDashboardData } from '../services/api/dashboard'
 import { getRecentImportJobs } from '../services/api/backtests'
 
+const DASHBOARD_METRIC_KEY_MAP = {
+  'Total Audits': 'dashboard.metricTotalAudits',
+  'Average Score': 'dashboard.metricAverageScore',
+  'Pass Rate': 'dashboard.metricPassRate',
+  'Recent Report': 'dashboard.metricRecentReport',
+}
+
+const DASHBOARD_PIPELINE_KEY_MAP = {
+  'Backtest audit completed for TrendFibPA_v1.': 'dashboard.pipelineItem1',
+  'Investor account audit report generated with moderate risk profile.': 'dashboard.pipelineItem2',
+  'Forward gate decision remains in review queue.': 'dashboard.pipelineItem3',
+}
+
+const DASHBOARD_FOCUS_KEY_MAP = {
+  'Expand dashboard drill-down panels.': 'dashboard.focusItem1',
+  'Add account-level filtering for audit snapshots.': 'dashboard.focusItem2',
+  'Prepare Vercel preview deployments for stakeholder review.': 'dashboard.focusItem3',
+}
+
+function localizeMetricLabel(label, t) {
+  const key = DASHBOARD_METRIC_KEY_MAP[label]
+  return key ? t(key) : label
+}
+
+function localizeDashboardLine(item, index, t, language, section) {
+  if (!item) return '--'
+  const map = section === 'pipeline' ? DASHBOARD_PIPELINE_KEY_MAP : DASHBOARD_FOCUS_KEY_MAP
+  const key = map[item]
+  if (key) {
+    return t(key)
+  }
+  if (language === 'zh' && /[A-Za-z]{4,}/.test(item)) {
+    return t('dashboard.placeholderLocalizedFallback', { index: index + 1 })
+  }
+  return item
+}
+
 function DashboardPage() {
   const { t, language } = useLanguage()
   const queryClient = useQueryClient()
@@ -36,6 +73,13 @@ function DashboardPage() {
     return <EmptyState title={t('dashboard.emptyTitle')} description={t('dashboard.emptyDesc')} />
   }
 
+  const localizedPipeline = (data.reportPipeline || []).map((item, index) =>
+    localizeDashboardLine(item, index, t, language, 'pipeline'),
+  )
+  const localizedFocus = (data.operationalFocus || []).map((item, index) =>
+    localizeDashboardLine(item, index, t, language, 'focus'),
+  )
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -54,7 +98,12 @@ function DashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {data.metrics.map((metric) => (
-          <StatCard key={metric.label} label={metric.label} value={metric.value} tone={metric.tone} />
+          <StatCard
+            key={metric.label}
+            label={localizeMetricLabel(metric.label, t)}
+            value={metric.value}
+            tone={metric.tone}
+          />
         ))}
       </div>
 
@@ -63,14 +112,14 @@ function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <SectionCard title={t('dashboard.recentPipelineTitle')} subtitle={t('dashboard.recentPipelineSubtitle')}>
           <ul className="space-y-2 text-sm text-slate-300">
-            {data.reportPipeline.map((item) => (
+            {localizedPipeline.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>
         </SectionCard>
         <SectionCard title={t('dashboard.focusTitle')} subtitle={t('dashboard.focusSubtitle')}>
           <ul className="space-y-2 text-sm text-slate-300">
-            {data.operationalFocus.map((item) => (
+            {localizedFocus.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>

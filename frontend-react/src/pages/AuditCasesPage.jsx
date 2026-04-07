@@ -28,6 +28,20 @@ const CASE_TYPE_OPTIONS = ['strategy', 'backtest', 'account_audit', 'mt5_connect
 const PRIORITY_OPTIONS = ['high', 'normal', 'low']
 const STATUS_OPTIONS = ['open', 'in_progress', 'closed', 'on_watch']
 
+const CASE_TYPE_LABELS = {
+  strategy: 'auditCases.caseTypeStrategy',
+  backtest: 'auditCases.caseTypeBacktest',
+  account_audit: 'auditCases.caseTypeAccountAudit',
+  mt5_connection: 'auditCases.caseTypeMt5Connection',
+  forward_run: 'auditCases.caseTypeForwardRun',
+}
+
+const PRIORITY_LABELS = {
+  high: 'auditCases.priorityHigh',
+  normal: 'auditCases.priorityNormal',
+  low: 'auditCases.priorityLow',
+}
+
 function formatDate(dateStr) {
   if (!dateStr) return '--'
   const date = new Date(dateStr)
@@ -670,10 +684,10 @@ function AuditCasesPage() {
       {showCreateForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4">
           <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
-            <h3 className="text-lg font-semibold text-slate-100">Create Audit Case</h3>
+            <h3 className="text-lg font-semibold text-slate-100">{t('auditCases.createCaseTitle')}</h3>
             <div className="mt-4 space-y-3">
               <label className="block">
-                <span className="mb-1 block text-xs text-slate-400">Case Type</span>
+                <span className="mb-1 block text-xs text-slate-400">{t('auditCases.caseType')}</span>
                 <select
                   value={createFormData.case_type}
                   onChange={(e) =>
@@ -683,14 +697,14 @@ function AuditCasesPage() {
                 >
                   {CASE_TYPE_OPTIONS.map((type) => (
                     <option key={type} value={type}>
-                      {type}
+                      {t(CASE_TYPE_LABELS[type] || 'auditCases.caseTypeStrategy')}
                     </option>
                   ))}
                 </select>
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-xs text-slate-400">Ref ID</span>
+                <span className="mb-1 block text-xs text-slate-400">{t('auditCases.refId')}</span>
                 <input
                   type="number"
                   value={createFormData.ref_id}
@@ -698,12 +712,12 @@ function AuditCasesPage() {
                     setCreateFormData((prev) => ({ ...prev, ref_id: e.target.value }))
                   }
                   className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-300"
-                  placeholder="Object ID"
+                  placeholder={t('auditCases.objectId')}
                 />
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-xs text-slate-400">Priority</span>
+                <span className="mb-1 block text-xs text-slate-400">{t('auditCases.priority')}</span>
                 <select
                   value={createFormData.priority}
                   onChange={(e) =>
@@ -713,14 +727,14 @@ function AuditCasesPage() {
                 >
                   {PRIORITY_OPTIONS.map((p) => (
                     <option key={p} value={p}>
-                      {p}
+                      {t(PRIORITY_LABELS[p] || 'auditCases.priorityNormal')}
                     </option>
                   ))}
                 </select>
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-xs text-slate-400">Note</span>
+                <span className="mb-1 block text-xs text-slate-400">{t('auditCases.noteLabel')}</span>
                 <textarea
                   value={createFormData.note}
                   onChange={(e) =>
@@ -728,7 +742,7 @@ function AuditCasesPage() {
                   }
                   rows={3}
                   className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-300"
-                  placeholder="Add notes..."
+                  placeholder={t('auditCases.addNotesPlaceholder')}
                 />
               </label>
 
@@ -745,13 +759,13 @@ function AuditCasesPage() {
                   }}
                   variant="secondary"
                 >
-                  Cancel
+                  {t('auditCases.cancel')}
                 </Button>
                 <Button
                   onClick={() => createMutation.mutate()}
                   disabled={createMutation.isPending || !createFormData.ref_id}
                 >
-                  {createMutation.isPending ? 'Creating...' : 'Create'}
+                  {createMutation.isPending ? t('auditCases.creating') : t('auditCases.create')}
                 </Button>
               </div>
             </div>

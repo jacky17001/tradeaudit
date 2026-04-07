@@ -60,6 +60,13 @@ function sourceTypeLabel(sourceType, t) {
   return t('accountAudit.sourceManual')
 }
 
+function shouldUseZhFallback(text, language) {
+  if (language !== 'zh') return false
+  if (!text || typeof text !== 'string') return true
+  const letters = (text.match(/[A-Za-z]/g) || []).length
+  return letters >= 18 && /\b(the|with|for|and|account|risk|score|evaluation|recommended)\b/i.test(text)
+}
+
 function AccountAuditPage() {
   const { t, language } = useLanguage()
   const queryClient = useQueryClient()
@@ -260,6 +267,19 @@ function AccountAuditPage() {
     winRate: t('accountAudit.winRate'),
     profitFactor: t('accountAudit.profitFactor'),
   }
+
+  const displayDecisionReason = shouldUseZhFallback(data.decisionReason, language)
+    ? t('accountAudit.fallbackDecisionReason')
+    : data.decisionReason
+  const displayRecommendedAction = shouldUseZhFallback(data.recommendedAction, language)
+    ? t('accountAudit.fallbackRecommendedAction')
+    : data.recommendedAction
+  const displayExplanation = shouldUseZhFallback(data.explanation, language)
+    ? t('accountAudit.fallbackExplanation')
+    : data.explanation
+  const displayAiExplanation = shouldUseZhFallback(data.aiExplanation, language)
+    ? t('accountAudit.fallbackAiExplanation')
+    : data.aiExplanation
 
   const handleExportReview = () => {
     try {
@@ -579,6 +599,17 @@ function AccountAuditPage() {
           <p className="text-[11px] uppercase tracking-[0.14em] text-indigo-200">{t('accountAudit.mt5ReadOnlyTitle')}</p>
           <p className="mt-1 text-xs text-slate-300">{t('accountAudit.mt5ReadOnlyDesc')}</p>
           <p className="mt-2 text-[11px] text-slate-400">{t('accountAudit.mt5NoTradingDesc')}</p>
+          <div className="mt-3 rounded-md border border-indigo-700/30 bg-slate-950/40 px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-200">
+              {t('accountAudit.mt5HelpTitle')}
+            </p>
+            <ul className="mt-2 space-y-1 text-xs text-slate-300">
+              <li>{t('accountAudit.mt5HelpServer')}</li>
+              <li>{t('accountAudit.mt5HelpPlatformScope')}</li>
+              <li>{t('accountAudit.mt5HelpLabelOptional')}</li>
+              <li>{t('accountAudit.mt5HelpCredentials')}</li>
+            </ul>
+          </div>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-2">
@@ -597,7 +628,7 @@ function AccountAuditPage() {
               value={mt5Form.server}
               onChange={(event) => setMt5Form((prev) => ({ ...prev, server: event.target.value }))}
               className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-200 outline-none transition focus:border-cyan-500"
-              placeholder="Broker-Server"
+              placeholder={t('accountAudit.mt5ServerPlaceholder')}
             />
           </label>
           <label className="block">
@@ -869,9 +900,9 @@ function AccountAuditPage() {
         finalScore={data.finalScore}
         scoreBreakdown={data.scoreBreakdown}
         decision={data.decision}
-        decisionReason={data.decisionReason}
-        recommendedAction={data.recommendedAction}
-        explanation={data.explanation}
+        decisionReason={displayDecisionReason}
+        recommendedAction={displayRecommendedAction}
+        explanation={displayExplanation}
         breakdownLabels={breakdownLabels}
         hardFailTriggered={data.hardFailTriggered}
         hardFailReasons={data.hardFailReasons}
@@ -901,7 +932,7 @@ function AccountAuditPage() {
         </SectionCard>
 
         <SectionCard title={t('accountAudit.aiTitle')} subtitle={t('accountAudit.aiSubtitle')}>
-          <p className="text-sm leading-7 text-slate-300">{data.aiExplanation}</p>
+          <p className="text-sm leading-7 text-slate-300">{displayAiExplanation}</p>
         </SectionCard>
       </div>
 
