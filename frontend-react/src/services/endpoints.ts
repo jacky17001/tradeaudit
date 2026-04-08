@@ -1,5 +1,8 @@
 export const endpoints = {
   health: '/api/health',
+  resultOverview: '/api/result-overview',
+  scoringSummary: '/api/scoring-summary',
+  recommendedActions: '/api/recommended-actions',
   auth: {
     login: '/api/auth/login',
     verify: '/api/auth/verify',

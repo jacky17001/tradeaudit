@@ -256,7 +256,14 @@ function ForwardGatePage() {
     <div className="space-y-6">
       {/* Header row */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-slate-400">{t('forwardGate.title')}</p>
+        <div>
+          <p className="text-sm text-slate-400">{t('forwardGate.title')}</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {language === 'zh'
+              ? '把前向结果转成是否继续、暂停或拒绝的清晰决策。'
+              : 'Turn forward results into clear decisions: continue, pause, or reject.'}
+          </p>
+        </div>
         <div className="flex w-full items-center justify-end gap-2 sm:w-auto sm:gap-3">
           {isFetching ? (
             <span className="text-xs text-cyan-300">{t('common.refreshing')}</span>

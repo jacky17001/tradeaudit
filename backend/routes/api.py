@@ -70,6 +70,9 @@ from services.timeline_service import (
     get_account_audit_timeline,
 )
 from services.strategy_lifecycle_service import get_strategy_lifecycle
+from services.result_overview_service import get_result_overview
+from services.scoring_summary_service import get_scoring_summary
+from services.recommended_actions_service import get_recommended_actions
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -169,6 +172,41 @@ def parse_pagination_args(raw_page: str | None, raw_page_size: str | None) -> tu
 @api_bp.get("/health")
 def health():
     return jsonify({"status": "ok", "service": "tradeaudit-api"})
+
+
+@api_bp.get("/result-overview")
+@require_access
+def result_overview_route():
+    try:
+        return jsonify(get_result_overview())
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load result overview", 500)
+
+
+@api_bp.get("/scoring-summary")
+@require_access
+def scoring_summary_route():
+    kind = (request.args.get("kind") or "").strip().lower()
+    if kind and kind not in {"strategy", "account"}:
+        return error_response("BAD_REQUEST", "kind must be strategy or account", 400)
+
+    try:
+        return jsonify(get_scoring_summary(kind or None))
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load scoring summary", 500)
+
+
+@api_bp.get("/recommended-actions")
+@require_access
+def recommended_actions_route():
+    kind = (request.args.get("kind") or "").strip().lower()
+    if kind and kind not in {"strategy", "account"}:
+        return error_response("BAD_REQUEST", "kind must be strategy or account", 400)
+
+    try:
+        return jsonify(get_recommended_actions(kind or None))
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load recommended actions", 500)
 
 
 @api_bp.get("/dashboard/summary")

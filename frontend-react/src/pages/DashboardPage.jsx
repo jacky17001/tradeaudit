@@ -83,7 +83,14 @@ function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-slate-400">{t('dashboard.summary')}</p>
+        <div>
+          <p className="text-sm text-slate-400">{t('dashboard.summary')}</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {language === 'zh'
+              ? '这是你的产品总览：先看结果，再决定下一步。'
+              : 'This is your product snapshot: see outcomes first, then decide the next step.'}
+          </p>
+        </div>
         <div className="flex w-full items-center justify-end gap-2 sm:w-auto sm:gap-3">
           {isFetching ? <span className="text-xs text-cyan-300">{t('common.refreshing')}</span> : null}
           <Button

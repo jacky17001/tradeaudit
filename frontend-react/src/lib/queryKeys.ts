@@ -1,4 +1,15 @@
 export const queryKeys = {
+  resultOverview: {
+    all: ['result-overview'] as const,
+  },
+  scoringSummary: {
+    all: ['scoring-summary'] as const,
+    kind: (kind: string) => ['scoring-summary', kind] as const,
+  },
+  recommendedActions: {
+    all: ['recommended-actions'] as const,
+    kind: (kind: string) => ['recommended-actions', kind] as const,
+  },
   dashboard: {
     all: ['dashboard'] as const,
   },

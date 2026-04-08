@@ -4,6 +4,9 @@ import { useLanguage } from '../i18n/LanguageContext'
 const pageTitleKeys = {
   '/': 'pageTitles.home',
   '/dashboard': 'pageTitles.dashboard',
+  '/result-overview': 'pageTitles.resultOverview',
+  '/scoring-summary': 'pageTitles.scoringSummary',
+  '/recommended-actions': 'pageTitles.recommendedActions',
   '/account-audit': 'pageTitles.accountAudit',
   '/backtests': 'pageTitles.backtests',
   '/forward-gate': 'pageTitles.forwardGate',

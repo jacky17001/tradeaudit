@@ -247,11 +247,11 @@ function AuditCasesPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm text-slate-400">Audit Cases & Review Queue</p>
-          <p className="text-xs text-slate-500 mt-0.5">Manage audit cases and track review priorities</p>
+          <p className="text-sm text-slate-400">{t('auditCases.pageTitle')}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{t('auditCases.pageSubtitle')}</p>
         </div>
         <Button onClick={() => setShowCreateForm(true)} variant="primary">
-          + New Case
+          + {t('auditCases.newCase')}
         </Button>
       </div>
 

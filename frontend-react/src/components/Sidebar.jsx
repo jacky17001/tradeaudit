@@ -5,6 +5,7 @@ import { useLanguage } from '../i18n/LanguageContext'
 const navLabelKeyByPath = {
   '/': 'sidebar.home',
   '/dashboard': 'sidebar.dashboard',
+  '/result-overview': 'sidebar.resultOverview',
   '/account-audit': 'sidebar.accountAudit',
   '/audit-cases': 'sidebar.auditCases',
   '/backtests': 'sidebar.backtests',

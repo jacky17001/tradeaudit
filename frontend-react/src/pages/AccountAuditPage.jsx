@@ -369,8 +369,11 @@ function AccountAuditPage() {
         <div>
           <p className="text-sm text-slate-400">{t('accountAudit.title')}</p>
           <p className="text-xs text-slate-500 mt-0.5">
-            {data.accountName} · {data.broker}
+            {language === 'zh'
+              ? '用于真实账户历史与 MT5 只读接入，帮助你判断账户是否值得继续信。'
+              : 'Built for real account history and MT5 read-only review so you can decide if the account is worth trusting.'}
           </p>
+          <p className="text-xs text-slate-600 mt-0.5">{data.accountName} · {data.broker}</p>
         </div>
         <div className="flex w-full items-center justify-end gap-2 sm:w-auto sm:gap-3">
           {isFetching ? (

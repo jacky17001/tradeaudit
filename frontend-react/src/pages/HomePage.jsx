@@ -10,13 +10,13 @@ function HomePage() {
     <div className="space-y-6">
       <SectionCard
         title="TradeAudit"
-        subtitle={t('home.subtitle')}
+        subtitle={t('resultOverview.valueProp')}
       >
         <p className="max-w-3xl text-sm leading-7 text-slate-300">
           {t('home.description')}
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
-          <Link to="/dashboard">
+          <Link to="/result-overview">
             <Button>{t('home.openDashboard')}</Button>
           </Link>
           <Link to="/account-audit">

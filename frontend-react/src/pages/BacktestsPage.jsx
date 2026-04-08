@@ -370,7 +370,14 @@ function BacktestsPage() {
     <div className="space-y-6">
       {/* Header row */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-slate-400">{t('backtests.title')}</p>
+        <div>
+          <p className="text-sm text-slate-400">{t('backtests.title')}</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {language === 'zh'
+              ? '用于结构化回测结果导入，快速判断策略是否值得继续推进。'
+              : 'Use this page to import structured backtest results and decide whether a strategy is worth progressing.'}
+          </p>
+        </div>
         <div className="flex w-full items-center justify-end gap-2 sm:w-auto sm:gap-3">
           {isFetching ? (
             <span className="text-xs text-cyan-300">{t('common.refreshing')}</span>
