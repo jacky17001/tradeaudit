@@ -76,4 +76,33 @@ export const queryKeys = {
     decision: (caseId: number) => ['audit-cases', 'decision', caseId] as const,
     timeline: (caseId: number, limit: number) => ['audit-cases', 'timeline', caseId, limit] as const,
   },
+  'review-board-summary': () => ['review-board', 'summary'] as const,
+  'review-board-cases': (
+    limit: number,
+    offset: number,
+    status: string | null,
+    caseType: string | null,
+    priority: string | null
+  ) => ['review-board', 'cases', limit, offset, status, caseType, priority] as const,
+  'review-board-options': () => ['review-board', 'options'] as const,
+  followUpTasks: {
+    list: (status?: string, objectType?: string, objectRefId?: number, priority?: string) =>
+      ['follow-up-tasks', 'list', status ?? null, objectType ?? null, objectRefId ?? null, priority ?? null] as const,
+    options: () => ['follow-up-tasks', 'options'] as const,
+  },
+  reportSnapshots: {
+    list: (snapshotType?: string, objectType?: string, objectRefId?: number) =>
+      ['report-snapshots', 'list', snapshotType ?? null, objectType ?? null, objectRefId ?? null] as const,
+    detail: (snapshotId: number) => ['report-snapshots', 'detail', snapshotId] as const,
+  },
+  portfolio: {
+    list: (
+      kind: string,
+      riskLevel?: string,
+      finalRecommendation?: string,
+      reviewStatus?: string,
+      nextStep?: string,
+    ) =>
+      ['portfolio', 'list', kind, riskLevel ?? null, finalRecommendation ?? null, reviewStatus ?? null, nextStep ?? null] as const,
+  },
 }

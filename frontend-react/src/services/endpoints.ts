@@ -70,5 +70,24 @@ export const endpoints = {
     decision: (caseId: number) => `/api/audit-cases/${caseId}/decision`,
     timeline: (caseId: number) => `/api/audit-cases/${caseId}/timeline`,
   },
+  reviewBoard: {
+    summary: '/api/review-board/summary',
+    cases: '/api/review-board/cases',
+    options: '/api/review-board/options',
+  },
+  followUpTasks: {
+    create: '/api/follow-up-tasks',
+    list: '/api/follow-up-tasks',
+    update: (taskId: number) => `/api/follow-up-tasks/${taskId}`,
+    options: '/api/follow-up-tasks/options',
+  },
+  reportSnapshots: {
+    create: '/api/report-snapshots',
+    list: '/api/report-snapshots',
+    detail: (snapshotId: number) => `/api/report-snapshots/${snapshotId}`,
+  },
+  portfolio: {
+    list: '/api/portfolio',
+  },
   backtestsActiveDataset: '/api/backtests/active-dataset',
 } as const

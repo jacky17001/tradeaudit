@@ -77,3 +77,15 @@ export function post<TResponse, TBody = unknown>(
     ...options,
   })
 }
+
+export function patch<TResponse, TBody = unknown>(
+  path: string,
+  body: TBody,
+  options?: RequestOptions,
+): Promise<TResponse> {
+  return request<TResponse>(path, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+    ...options,
+  })
+}

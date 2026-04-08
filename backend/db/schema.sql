@@ -307,3 +307,40 @@ CREATE TABLE IF NOT EXISTS review_actions (
 
 CREATE INDEX IF NOT EXISTS idx_review_actions_case_id
 ON review_actions (case_id, id DESC);
+
+CREATE TABLE IF NOT EXISTS follow_up_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    object_type TEXT NOT NULL,
+    object_ref_id INTEGER NOT NULL,
+    action_key TEXT NOT NULL,
+    title TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    priority TEXT NOT NULL DEFAULT 'normal',
+    due_label TEXT NOT NULL DEFAULT 'later',
+    note TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_follow_up_tasks_object
+ON follow_up_tasks (object_type, object_ref_id, id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_follow_up_tasks_status_priority
+ON follow_up_tasks (status, priority, id DESC);
+
+CREATE TABLE IF NOT EXISTS report_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    snapshot_type TEXT NOT NULL,
+    object_type TEXT NOT NULL,
+    object_ref_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    note TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_snapshots_type_object
+ON report_snapshots (snapshot_type, object_type, object_ref_id, id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_report_snapshots_created
+ON report_snapshots (id DESC);

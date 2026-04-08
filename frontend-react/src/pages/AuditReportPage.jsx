@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import SectionCard from '../components/SectionCard'
@@ -10,6 +10,7 @@ import { useLanguage } from '../i18n/LanguageContext'
 import { queryKeys } from '../lib/queryKeys'
 import { getAuditReport } from '../services/api/auditReport'
 import { getFinalRecommendation } from '../services/api/finalRecommendation'
+import { createReportSnapshot } from '../services/api/reportSnapshots'
 
 function toneByVerdict(verdict) {
   if (verdict === 'Qualified') return 'success'
@@ -58,6 +59,13 @@ function AuditReportPage() {
   const [searchParams] = useSearchParams()
   const kind = searchParams.get('kind') === 'account' ? 'account' : 'strategy'
   const [exportFeedback, setExportFeedback] = useState('')
+  const [snapshotFeedback, setSnapshotFeedback] = useState('')
+
+  const snapshotMutation = useMutation({
+    mutationFn: (payload) => createReportSnapshot(payload),
+    onSuccess: () => setSnapshotFeedback(t('reportSnapshots.snapshotSaved')),
+    onError: () => setSnapshotFeedback(t('reportSnapshots.saveFailed')),
+  })
 
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.auditReport.kind(kind),
@@ -209,6 +217,52 @@ function AuditReportPage() {
     }
   }
 
+  function handleSaveSnapshot() {
+    if (!data) {
+      setSnapshotFeedback(t('reportSnapshots.saveFailed'))
+      return
+    }
+    setSnapshotFeedback('')
+    const snapshotPayload = {
+      score: data.score ?? null,
+      verdict: data.verdict ?? null,
+      riskLevel: data.riskLevel ?? null,
+      trustLevel: data.trustLevel ?? null,
+      whyThisResult: data.whyThisResult ?? '',
+      strengths: data.strengths || [],
+      risks: data.risks || [],
+      recommendedActions: data.recommendedActions || [],
+      timelineHighlights: data.timelineHighlights || [],
+    }
+
+    snapshotMutation.mutate({
+      snapshot_type: 'audit_report',
+      object_type: kind,
+      object_ref_id: 1,
+      title: `${reportTitle} - ${new Date().toLocaleString()}`,
+      payload_json: snapshotPayload,
+      note: finalRecommendation?.whyThisRecommendation || '',
+    })
+
+    if (finalRecommendation) {
+      snapshotMutation.mutate({
+        snapshot_type: 'final_recommendation',
+        object_type: kind,
+        object_ref_id: 1,
+        title: `${t('reportSnapshots.finalRecommendationSnapshot')} - ${new Date().toLocaleString()}`,
+        payload_json: {
+          finalRecommendation: finalRecommendation.finalRecommendation ?? null,
+          finalStatus: finalRecommendation.finalStatus ?? null,
+          reviewerNote: finalRecommendation.reviewerNote ?? null,
+          decisionSnapshot: finalRecommendation.decisionSnapshot || {},
+          supportingSignals: finalRecommendation.supportingSignals || [],
+          recommendedNextStep: finalRecommendation.recommendedNextStep ?? null,
+        },
+        note: finalRecommendation.whyThisRecommendation || '',
+      })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <SectionCard
@@ -219,10 +273,12 @@ function AuditReportPage() {
         <p className="text-sm text-slate-300">{t('auditReport.pageDescription')}</p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Button variant="secondary" onClick={handleExportReport}>{t('auditReport.exportReport')}</Button>
+          <Button variant="secondary" onClick={handleSaveSnapshot} disabled={snapshotMutation.isPending}>{t('reportSnapshots.saveSnapshot')}</Button>
           <span className="text-xs text-slate-400">{t('auditReport.downloadReport')}</span>
           <span className="text-xs text-slate-500">{t('auditReport.printableReport')}</span>
         </div>
         {exportFeedback ? <p className="mt-2 text-xs text-emerald-300">{exportFeedback}</p> : null}
+        {snapshotFeedback ? <p className="mt-2 text-xs text-cyan-300">{snapshotFeedback}</p> : null}
       </SectionCard>
 
       <SectionCard title={kind === 'strategy' ? t('auditReport.strategyReport') : t('auditReport.accountReport')}>

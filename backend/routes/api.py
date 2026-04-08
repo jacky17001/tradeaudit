@@ -76,6 +76,23 @@ from services.recommended_actions_service import get_recommended_actions
 from services.audit_report_service import get_audit_report
 from services.comparison_report_service import get_comparison_report
 from services.final_recommendation_service import get_final_recommendation
+from services.review_board_service import (
+    get_review_board_summary,
+    get_review_board_cases,
+    get_review_status_options,
+)
+from services.follow_up_tasks_service import (
+    create_follow_up_task,
+    list_follow_up_tasks,
+    patch_follow_up_task,
+    get_follow_up_task_options,
+)
+from services.report_snapshots_service import (
+    create_report_snapshot,
+    list_snapshots,
+    get_snapshot_detail,
+)
+from services.portfolio_service import get_portfolio_view
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -1150,3 +1167,186 @@ def list_gate_results_route():
         return error_response("BAD_REQUEST", str(exc), 400)
     except Exception:
         return error_response("INTERNAL_ERROR", "Failed to load gate results", 500)
+
+
+# Review Board Routes (Stage 48)
+@api_bp.get("/review-board/summary")
+@require_access
+def review_board_summary_route():
+    """Get summary statistics for the review board."""
+    try:
+        result = get_review_board_summary()
+        return jsonify(result)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load review board summary", 500)
+
+
+@api_bp.get("/review-board/cases")
+@require_access
+def review_board_cases_route():
+    """Get filtered list of audit cases for the review board."""
+    try:
+        limit = min(int(request.args.get("limit", 100)), 500)
+        offset = max(int(request.args.get("offset", 0)), 0)
+        status = request.args.get("status")
+        case_type = request.args.get("caseType")
+        priority = request.args.get("priority")
+        
+        result = get_review_board_cases(
+            limit=limit,
+            status=status,
+            case_type=case_type,
+            priority=priority,
+            offset=offset
+        )
+        return jsonify(result)
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load review board cases", 500)
+
+
+@api_bp.get("/review-board/options")
+@require_access
+def review_board_options_route():
+    """Get available options for review board filters."""
+    try:
+        result = get_review_status_options()
+        return jsonify(result)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load review board options", 500)
+
+
+# Follow-up Task Routes (Stage 49)
+@api_bp.post("/follow-up-tasks")
+@require_access
+def create_follow_up_task_route():
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(create_follow_up_task(payload)), 201
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to create follow-up task", 500)
+
+
+@api_bp.get("/follow-up-tasks")
+@require_access
+def list_follow_up_tasks_route():
+    try:
+        limit = min(max(int(request.args.get("limit", 100)), 1), 500)
+        object_type = (request.args.get("objectType") or "").strip() or None
+        object_ref_id = (request.args.get("objectRefId") or "").strip() or None
+        status = (request.args.get("status") or "").strip() or None
+        priority = (request.args.get("priority") or "").strip() or None
+        return jsonify(
+            list_follow_up_tasks(
+                limit=limit,
+                object_type=object_type,
+                object_ref_id=object_ref_id,
+                status=status,
+                priority=priority,
+            )
+        )
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load follow-up tasks", 500)
+
+
+@api_bp.patch("/follow-up-tasks/<int:task_id>")
+@require_access
+def patch_follow_up_task_route(task_id: int):
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(patch_follow_up_task(task_id, payload))
+    except ValueError as exc:
+        code = "NOT_FOUND" if "not found" in str(exc).lower() else "BAD_REQUEST"
+        status_code = 404 if code == "NOT_FOUND" else 400
+        return error_response(code, str(exc), status_code)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to update follow-up task", 500)
+
+
+@api_bp.get("/follow-up-tasks/options")
+@require_access
+def follow_up_task_options_route():
+    try:
+        return jsonify(get_follow_up_task_options())
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load follow-up task options", 500)
+
+
+# Report Snapshot Routes (Stage 50)
+@api_bp.post("/report-snapshots")
+@require_access
+def create_report_snapshot_route():
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(create_report_snapshot(payload)), 201
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to create report snapshot", 500)
+
+
+@api_bp.get("/report-snapshots")
+@require_access
+def list_report_snapshots_route():
+    try:
+        limit = min(max(int(request.args.get("limit", 200)), 1), 500)
+        snapshot_type = (request.args.get("snapshotType") or "").strip() or None
+        object_type = (request.args.get("objectType") or "").strip() or None
+        object_ref_id = (request.args.get("objectRefId") or "").strip() or None
+        return jsonify(
+            list_snapshots(
+                limit=limit,
+                snapshot_type=snapshot_type,
+                object_type=object_type,
+                object_ref_id=object_ref_id,
+            )
+        )
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to list report snapshots", 500)
+
+
+@api_bp.get("/report-snapshots/<int:snapshot_id>")
+@require_access
+def get_report_snapshot_route(snapshot_id: int):
+    try:
+        return jsonify(get_snapshot_detail(snapshot_id))
+    except ValueError as exc:
+        return error_response("NOT_FOUND", str(exc), 404)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load report snapshot", 500)
+
+
+@api_bp.get("/portfolio")
+@require_access
+def portfolio_route():
+    kind = (request.args.get("kind") or "").strip().lower()
+    if kind not in {"strategy", "account"}:
+        return error_response("BAD_REQUEST", "kind must be strategy or account", 400)
+
+    risk_level = (request.args.get("riskLevel") or "").strip() or None
+    final_recommendation = (request.args.get("finalRecommendation") or "").strip() or None
+    review_status = (request.args.get("reviewStatus") or "").strip() or None
+    next_step = (request.args.get("nextStep") or "").strip() or None
+
+    try:
+        return jsonify(
+            get_portfolio_view(
+                kind=kind,
+                risk_level=risk_level,
+                final_recommendation=final_recommendation,
+                review_status=review_status,
+                next_step=next_step,
+            )
+        )
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load portfolio view", 500)
+

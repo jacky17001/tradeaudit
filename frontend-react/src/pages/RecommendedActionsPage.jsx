@@ -1,5 +1,7 @@
+import { useMutation } from '@tanstack/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
+import { useState } from 'react'
 import SectionCard from '../components/SectionCard'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -7,6 +9,7 @@ import ErrorState from '../components/ui/ErrorState'
 import LoadingState from '../components/ui/LoadingState'
 import { useLanguage } from '../i18n/LanguageContext'
 import { queryKeys } from '../lib/queryKeys'
+import { createFollowUpTask } from '../services/api/followUpTasks'
 import { getRecommendedActions } from '../services/api/recommendedActions'
 
 function priorityTone(priority) {
@@ -77,6 +80,13 @@ function RecommendedActionsPage() {
   const { t } = useLanguage()
   const [searchParams] = useSearchParams()
   const kind = searchParams.get('kind') === 'account' ? 'account' : 'strategy'
+  const [feedback, setFeedback] = useState('')
+
+  const createTaskMutation = useMutation({
+    mutationFn: (payload) => createFollowUpTask(payload),
+    onSuccess: () => setFeedback(t('followUpTasks.taskCreated')),
+    onError: () => setFeedback(t('followUpTasks.taskCreateFailed')),
+  })
 
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.recommendedActions.kind(kind),
@@ -93,6 +103,36 @@ function RecommendedActionsPage() {
 
   const actions = data.recommendedActions || []
 
+  const bridgeActionKey = (actionKey) => {
+    if (actionKey === 'review_manually') return 'review_manually'
+    if (actionKey === 'collect_more_data' || actionKey === 'upload_statement' || actionKey === 'upload_account_history') {
+      return 'need_more_data'
+    }
+    if (actionKey === 'recompute_summary' || actionKey === 'connect_mt5_read_only') return 'sync_again'
+    if (actionKey === 'continue_monitoring') return 'recheck_later'
+    return 'follow_up'
+  }
+
+  const bridgePriority = (priority) => {
+    if (priority === 'High') return 'high'
+    if (priority === 'Low') return 'low'
+    return 'normal'
+  }
+
+  const handleCreateTask = (item) => {
+    setFeedback('')
+    const mappedPriority = bridgePriority(item.priority)
+    createTaskMutation.mutate({
+      object_type: kind === 'account' ? 'account' : 'strategy',
+      object_ref_id: 1,
+      action_key: bridgeActionKey(item.actionKey),
+      title: localizeActionTitle(item, t),
+      priority: mappedPriority,
+      due_label: mappedPriority === 'high' ? 'today' : 'this_week',
+      note: item.reason || '',
+    })
+  }
+
   return (
     <div className="space-y-6">
       <SectionCard
@@ -108,6 +148,7 @@ function RecommendedActionsPage() {
           <p className="text-sm text-slate-400">{t('scoringSummary.totalScore')}: <span className="text-slate-200">{data.score ?? '--'}</span></p>
           <p className="text-sm text-slate-400">{t('scoringSummary.decision')}: <span className="text-slate-200">{data.decision}</span></p>
         </div>
+        {feedback ? <p className="mt-3 text-xs text-cyan-300">{feedback}</p> : null}
       </SectionCard>
 
       {actions.length === 0 ? (
@@ -138,9 +179,18 @@ function RecommendedActionsPage() {
                 <p className="mt-1 text-sm text-slate-200">{item.reason}</p>
               </div>
 
-              <Link to={item.targetPath || '/dashboard'}>
-                <Button variant="secondary">{t('recommendedActions.openAction')}</Button>
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link to={item.targetPath || '/dashboard'}>
+                  <Button variant="secondary">{t('recommendedActions.openAction')}</Button>
+                </Link>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleCreateTask(item)}
+                  disabled={createTaskMutation.isPending}
+                >
+                  {t('followUpTasks.createTask')}
+                </Button>
+              </div>
             </section>
           ))}
         </div>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import SectionCard from '../components/SectionCard'
 import Badge from '../components/ui/Badge'
@@ -10,6 +10,7 @@ import { useLanguage } from '../i18n/LanguageContext'
 import { queryKeys } from '../lib/queryKeys'
 import { getComparisonReport } from '../services/api/comparisonReport'
 import { getFinalRecommendation } from '../services/api/finalRecommendation'
+import { createReportSnapshot } from '../services/api/reportSnapshots'
 
 function winnerTone(winner) {
   if (winner === 'left' || winner === 'right') return 'success'
@@ -61,6 +62,13 @@ function ComparisonReportPage() {
   const [leftInput, setLeftInput] = useState(leftParam)
   const [rightInput, setRightInput] = useState(rightParam)
   const [exportFeedback, setExportFeedback] = useState('')
+  const [snapshotFeedback, setSnapshotFeedback] = useState('')
+
+  const snapshotMutation = useMutation({
+    mutationFn: (payload) => createReportSnapshot(payload),
+    onSuccess: () => setSnapshotFeedback(t('reportSnapshots.snapshotSaved')),
+    onError: () => setSnapshotFeedback(t('reportSnapshots.saveFailed')),
+  })
 
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.comparisonReport.params(kind, leftParam, rightParam),
@@ -164,6 +172,48 @@ function ComparisonReportPage() {
     }
   }
 
+  function saveSnapshot() {
+    if (!data) {
+      setSnapshotFeedback(t('reportSnapshots.saveFailed'))
+      return
+    }
+    setSnapshotFeedback('')
+    snapshotMutation.mutate({
+      snapshot_type: 'comparison_report',
+      object_type: 'comparison',
+      object_ref_id: 1,
+      title: `${kind === 'strategy' ? t('comparisonReport.strategyComparisonReport') : t('comparisonReport.accountComparisonReport')} - ${new Date().toLocaleString()}`,
+      payload_json: {
+        winner: data.winner ?? null,
+        recommendation: data.recommendation ?? null,
+        summaryConclusion: data.summaryConclusion ?? '',
+        keyDifferences: data.keyDifferences || [],
+        scoreComparison: data.scoreComparison || {},
+        riskComparison: data.riskComparison || {},
+        trustComparison: data.trustComparison || {},
+      },
+      note: data.summaryConclusion || '',
+    })
+
+    if (finalRecommendation) {
+      snapshotMutation.mutate({
+        snapshot_type: 'final_recommendation',
+        object_type: kind,
+        object_ref_id: 1,
+        title: `${t('reportSnapshots.finalRecommendationSnapshot')} - ${new Date().toLocaleString()}`,
+        payload_json: {
+          finalRecommendation: finalRecommendation.finalRecommendation ?? null,
+          finalStatus: finalRecommendation.finalStatus ?? null,
+          reviewerNote: finalRecommendation.reviewerNote ?? null,
+          decisionSnapshot: finalRecommendation.decisionSnapshot || {},
+          supportingSignals: finalRecommendation.supportingSignals || [],
+          recommendedNextStep: finalRecommendation.recommendedNextStep ?? null,
+        },
+        note: finalRecommendation.whyThisRecommendation || '',
+      })
+    }
+  }
+
   if (isLoading) {
     return <LoadingState label={t('comparisonReport.loading')} />
   }
@@ -193,8 +243,10 @@ function ComparisonReportPage() {
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <Button variant="secondary" onClick={runCompare}>{t('comparisonReport.runComparison')}</Button>
           <Button variant="secondary" onClick={exportMarkdown}>{t('auditReport.exportReport')}</Button>
+          <Button variant="secondary" onClick={saveSnapshot} disabled={snapshotMutation.isPending}>{t('reportSnapshots.saveSnapshot')}</Button>
         </div>
         {exportFeedback ? <p className="mt-2 text-xs text-emerald-300">{exportFeedback}</p> : null}
+        {snapshotFeedback ? <p className="mt-2 text-xs text-cyan-300">{snapshotFeedback}</p> : null}
       </SectionCard>
 
       <SectionCard title={t('comparisonReport.whichIsBetter')}>
