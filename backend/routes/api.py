@@ -73,6 +73,9 @@ from services.strategy_lifecycle_service import get_strategy_lifecycle
 from services.result_overview_service import get_result_overview
 from services.scoring_summary_service import get_scoring_summary
 from services.recommended_actions_service import get_recommended_actions
+from services.audit_report_service import get_audit_report
+from services.comparison_report_service import get_comparison_report
+from services.final_recommendation_service import get_final_recommendation
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -207,6 +210,52 @@ def recommended_actions_route():
         return jsonify(get_recommended_actions(kind or None))
     except Exception:
         return error_response("INTERNAL_ERROR", "Failed to load recommended actions", 500)
+
+
+@api_bp.get("/audit-report")
+@require_access
+def audit_report_route():
+    kind = (request.args.get("kind") or "").strip().lower()
+    if kind and kind not in {"strategy", "account"}:
+        return error_response("BAD_REQUEST", "kind must be strategy or account", 400)
+
+    try:
+        return jsonify(get_audit_report(kind or None))
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load audit report", 500)
+
+
+@api_bp.get("/comparison-report")
+@require_access
+def comparison_report_route():
+    kind = (request.args.get("kind") or "").strip().lower()
+    if kind not in {"strategy", "account"}:
+        return error_response("BAD_REQUEST", "kind must be strategy or account", 400)
+
+    left = (request.args.get("left") or "").strip() or None
+    right = (request.args.get("right") or "").strip() or None
+
+    try:
+        return jsonify(get_comparison_report(kind=kind, left=left, right=right))
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load comparison report", 500)
+
+
+@api_bp.get("/final-recommendation")
+@require_access
+def final_recommendation_route():
+    kind = (request.args.get("kind") or "").strip().lower() or None
+    if kind and kind not in {"strategy", "account"}:
+        return error_response("BAD_REQUEST", "kind must be strategy or account", 400)
+
+    try:
+        return jsonify(get_final_recommendation(kind=kind))
+    except ValueError as exc:
+        return error_response("BAD_REQUEST", str(exc), 400)
+    except Exception:
+        return error_response("INTERNAL_ERROR", "Failed to load final recommendation", 500)
 
 
 @api_bp.get("/dashboard/summary")

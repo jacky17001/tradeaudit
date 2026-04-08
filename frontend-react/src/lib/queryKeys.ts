@@ -10,6 +10,18 @@ export const queryKeys = {
     all: ['recommended-actions'] as const,
     kind: (kind: string) => ['recommended-actions', kind] as const,
   },
+  auditReport: {
+    all: ['audit-report'] as const,
+    kind: (kind: string) => ['audit-report', kind] as const,
+  },
+  comparisonReport: {
+    all: ['comparison-report'] as const,
+    params: (kind: string, left: string, right: string) => ['comparison-report', kind, left, right] as const,
+  },
+  finalRecommendation: {
+    all: ['final-recommendation'] as const,
+    kind: (kind: string) => ['final-recommendation', kind] as const,
+  },
   dashboard: {
     all: ['dashboard'] as const,
   },

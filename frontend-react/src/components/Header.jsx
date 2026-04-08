@@ -7,6 +7,8 @@ const pageTitleKeys = {
   '/result-overview': 'pageTitles.resultOverview',
   '/scoring-summary': 'pageTitles.scoringSummary',
   '/recommended-actions': 'pageTitles.recommendedActions',
+  '/audit-report': 'pageTitles.auditReport',
+  '/comparison-report': 'pageTitles.comparisonReport',
   '/account-audit': 'pageTitles.accountAudit',
   '/backtests': 'pageTitles.backtests',
   '/forward-gate': 'pageTitles.forwardGate',

@@ -3,6 +3,9 @@ export const endpoints = {
   resultOverview: '/api/result-overview',
   scoringSummary: '/api/scoring-summary',
   recommendedActions: '/api/recommended-actions',
+  auditReport: '/api/audit-report',
+  comparisonReport: '/api/comparison-report',
+  finalRecommendation: '/api/final-recommendation',
   auth: {
     login: '/api/auth/login',
     verify: '/api/auth/verify',

@@ -6,6 +6,8 @@ const navLabelKeyByPath = {
   '/': 'sidebar.home',
   '/dashboard': 'sidebar.dashboard',
   '/result-overview': 'sidebar.resultOverview',
+  '/audit-report': 'sidebar.auditReport',
+  '/comparison-report': 'sidebar.comparisonReport',
   '/account-audit': 'sidebar.accountAudit',
   '/audit-cases': 'sidebar.auditCases',
   '/backtests': 'sidebar.backtests',
